@@ -115,6 +115,14 @@ try {
   await phone.waitForSelector("button[aria-label=Workspace]", { timeout: 20000 });
   await phone.waitForTimeout(1500);
   check("no horizontal scroll at 360 px", !(await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)));
+  // The desktop left REQ-0002 open; the phone, reading the same saved state, opens at it.
+  await phone.waitForSelector("textarea", { timeout: 15000 }).catch(() => {});
+  check("the phone opens at the document the desktop had open", (await phone.locator("textarea").count()) > 0);
+  const small = await phone.evaluate(() => [...document.querySelectorAll("button, a, select, input, textarea")]
+    .filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== "hidden"; })
+    .map((e) => { const b = e.getBoundingClientRect(); return `${e.tagName} ${(e.getAttribute("aria-label") || e.textContent || e.placeholder || "").trim().slice(0, 24)} ${Math.round(b.width)}x${Math.round(b.height)}`; })
+    .filter((x) => { const [w, h] = x.split(" ").pop().split("x").map(Number); return w < 44 || h < 44; }));
+  check("every control is at least 44 px square at 360 px", small.length === 0, small.join("; "));
 
   await page.click("button[aria-label=Workspace]");
   await page.click('li:has-text("e2e-scratch") >> text=Remove');

@@ -28,7 +28,7 @@ function Auto({ value, onChange, className }: { value: string; onChange: (v: str
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { const el = ref.current; if (el) { el.style.height = "0"; el.style.height = el.scrollHeight + "px"; } }, [value]);
   return <textarea ref={ref} rows={1} value={value} onChange={(e) => onChange(e.target.value)}
-    className={`w-full resize-none rounded-md border border-transparent bg-transparent px-2 py-1 outline-none hover:border-line focus:border-accent ${className ?? ""}`} />;
+    className={`min-h-[44px] w-full resize-none rounded-md border border-transparent bg-transparent px-2 py-2.5 outline-none md:min-h-0 md:py-1 hover:border-line focus:border-accent ${className ?? ""}`} />;
 }
 
 type Ops = ReturnType<typeof operations>;
@@ -199,7 +199,7 @@ export default function Editor({
                     <button aria-label={`Remove ${t}`} onClick={() => change(setList(draft, "tags", fields.tags.filter((x) => x !== t)))}><X size={12} /></button>
                   </span>
                 ))}
-                <input className="chip !min-h-0 w-28 outline-none" placeholder="add tag" onKeyDown={(e) => {
+                <input className="chip md:!min-h-0 w-28 outline-none" placeholder="add tag" onKeyDown={(e) => {
                   const v = e.currentTarget.value.trim();
                   if (e.key === "Enter" && v) { change(setList(draft, "tags", [...fields.tags, v])); e.currentTarget.value = ""; }
                 }} />
@@ -212,7 +212,7 @@ export default function Editor({
                     <button aria-label={`Remove ${r}`} onClick={() => change(setList(draft, "refines", fields.refines.filter((x) => x !== r)))}><X size={12} /></button>
                   </span>
                 ))}
-                <input className="chip !min-h-0 w-28 outline-none" placeholder="add id or @repo/id" onKeyDown={(e) => {
+                <input className="chip md:!min-h-0 w-28 outline-none" placeholder="add id or @repo/id" onKeyDown={(e) => {
                   const raw = e.currentTarget.value.trim(); const v = raw.startsWith("@") ? raw : raw.toUpperCase();
                   if (e.key === "Enter" && v) { change(setList(draft, "refines", [...fields.refines, v])); e.currentTarget.value = ""; }
                 }} />
