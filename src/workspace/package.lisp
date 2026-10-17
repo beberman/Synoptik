@@ -175,6 +175,13 @@
    ;; that edits a document rather than reading one. Both return a report
    ;; plist whose :PROBLEMS is empty exactly when something was written.
    #:set-document-status
+
+   ;; REQ-0080, DES-0057 D1. A document read, rewritten and created as text.
+   #:read-document-text
+   #:write-document-text
+   #:create-document
+   #:text-version-token
+
    ;; CON-0004's terminal column, in the form a document store takes. Exported
    ;; because whoever builds a store wires it in: REPOSITORY-DOCUMENT-STORE
    ;; does it for the default file store, and a caller passing WATCH-REPOSITORY
