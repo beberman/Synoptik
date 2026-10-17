@@ -800,7 +800,8 @@ or indexed. Pass contents to check a draft that is not on disk."
     (list :repository (repository-name repository)
           :documents (loop for type in *document-types*
                            append (mapcar #'document-listing-entry
-                                          (entities-of-type graph type))))))
+                                          (remove-if-not (lambda (entity) (document-held-p repository entity))
+                                                         (entities-of-type graph type)))))))
 
 (define-operation :documents :read ((repository))
     "Every document with its id, type, title, status, priority, tags and the \

@@ -191,6 +191,17 @@ body: |
       PLAN-0062 with verdicts for DES-0057 and REQ-0080. A requirement item the
       run does not meet makes REQ-0080 `partial` with an OUTSTANDING section.
 
+      Measured so far (2026-10-17, through the running service): all 489
+      workflow documents of this tree, game-server, front-end, utils and
+      lfia-accounting were read and saved unchanged; none differed from the
+      file on disk and none was written. game-server holds two files with the id
+      BUG-0004, `docs/bugs/BUG-0004.yaml` and `docs/bugs/completed/BUG-0004.yaml`;
+      the service refuses to read either by id and says so, which is the right
+      answer and a defect in that tree. A browser run (`src/web/e2e/run.mjs`)
+      adds a folder, edits, hits a conflict, creates, checks 44 px targets at
+      360 px and removes the folder, in a scratch repository. Not yet done: S1,
+      S14, a phone over a real network, and the acceptance run's remaining items.
+
   RISKS
 
   S2 can reject every candidate. The fallback is a plain-text editor with a

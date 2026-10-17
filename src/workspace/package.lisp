@@ -177,6 +177,7 @@
    #:set-document-status
 
    ;; REQ-0080, DES-0057 D1. A document read, rewritten and created as text.
+   #:document-held-p
    #:read-document-text
    #:write-document-text
    #:create-document

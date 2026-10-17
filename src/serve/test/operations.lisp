@@ -61,6 +61,10 @@ check:
   to-system: docs
   rel-types: [calls]
 ")
+  (write-operations-fixture-file "NOTES.md" "# Notes
+
+Alpha is documented here.
+")
   (watch-repository *operations-fixture-root* :monitor nil :quiet t))
 
 (defmacro with-operations-fixture ((repository) &body body)
@@ -1054,6 +1058,10 @@ listed as answering about a whole repository. Decide which it is and say so in ~
       (is (equal '("alpha") (getf decision :affects)))
       (is (equal "docs/decisions/DEC-0001.yaml" (getf decision :path)))
       (is-true (find "RULE-0001" listed :key (lambda (d) (getf d :id)) :test #'equal))
+      ;; CON-0003: without the held-by-the-store filter the markdown file is
+      ;; listed and cannot then be read.
+      (is-false (find "NOTES.md" listed :key (lambda (d) (getf d :path)) :test #'equal)
+                "a markdown file is indexed as a document and is not one the editor can open")
       (is-true (getf (call-operation :documents '(:read)) :repositories)
                "without a repository, every repository is answered"))))
 

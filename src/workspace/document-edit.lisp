@@ -51,6 +51,13 @@ the index entity, and a list of problems."
           (values nil (list :problems (list (format nil "No repository named ~a."
                                                     repository)))))))
 
+(defun document-held-p (repository entity)
+  "True when the document store holds ENTITY's file, so `read-document-text` can
+read it and `write-document-text` can replace it. A markdown file the index
+lists as a :DOCUMENT is not one: the store holds the YAML under docs/, and the
+explorer lists only what it can open."
+  (and (document-store-entry repository entity) t))
+
 (defun read-document-text (repository designator)
   "The text of one document and its version token. A plist with :TEXT,
 :VERSION, :DOC-ID and :ADDRESS, or :PROBLEMS when the document cannot be read."
