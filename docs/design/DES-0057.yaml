@@ -225,11 +225,19 @@ body: |
       `set-status`, not through the text, because a status change files the
       document under `completed/` and a text write does not.
 
-  D15 The editor library is open. The requirement is a formatted view of YAML that
-      round-trips, and the candidates differ in how they treat text they do not
-      understand. A spike loads every document in `docs/` into each candidate,
-      saves without an edit, and counts the files whose bytes differ. A library
-      that changes any is out.
+  D15 The editor edits the source text and never re-serialises it. Spike S2
+      (`src/web/spikes/s2-roundtrip`) parsed the 489 documents of this tree,
+      game-server, front-end and utils with the `yaml` package 2.8.1. Writing
+      each parsed document back out changed 484 of them. Changing one summary
+      line in twenty documents that way changed 2329 other lines. Taking the
+      node's source range from the parse and replacing only that range changed no
+      other line. So the structured controls hold the parse for positions and
+      each edit splices the characters of one node into the original text. The
+      editor package is `yaml` for positions, and the text view and find and
+      replace sit on a plain text buffer; the choice of a code-editor widget
+      for the YAML toggle is cosmetic and left to S10. The splice side of the
+      spike returns the input by construction, so the test S10 adds is that
+      every spliced edit parses back to the value entered.
 
   STYLE
 
