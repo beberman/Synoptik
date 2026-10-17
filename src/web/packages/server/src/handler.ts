@@ -108,6 +108,18 @@ export function createHandler(config: HandlerConfig): (request: Request) => Prom
     return json(200, { roots: file.roots, repositories, damaged: config.stores.workspace.damage });
   }
 
+  /** Take a folder out of the workspace file without asking the service: for one that is gone from disk. */
+  async function forget(request: Request): Promise<Response> {
+    if (request.method !== "POST") return refuse(405, "METHOD-NOT-ALLOWED", "Use POST.");
+    const { path } = (await request.json().catch(() => ({}))) as { path?: string };
+    const file = await config.stores.workspace.read();
+    if (!file.repositories.some((r) => r.path === path)) return refuse(404, "NOT-IN-WORKSPACE", "That folder is not in the workspace file.");
+    try {
+      await config.stores.updateWorkspace((w) => { w.repositories = w.repositories.filter((r) => r.path !== path); });
+    } catch (error: any) { return refuse(409, "STATE-FILE-DAMAGED", error.message); }
+    return json(200, { forgotten: path });
+  }
+
   async function folders(): Promise<Response> {
     const file = await config.stores.workspace.read();
     const watched = new Set(file.repositories.map((r) => r.path));
@@ -179,6 +191,7 @@ export function createHandler(config: HandlerConfig): (request: Request) => Prom
       if (route.startsWith("v1/")) return await operate(route.slice(3), request, url);
       if (route === "folders") return await folders();
       if (route === "workspace") return await workspace();
+      if (route === "workspace/forget") return await forget(request);
       if (route === "ui-state") return await uiState(request);
       if (route === "events") return events();
       return refuse(404, "NOT-FOUND", `No route /api/${route}.`);

@@ -191,7 +191,10 @@ body: |
       called only with a path from that list, and the server refuses any other,
       so the browser cannot ask the service to read an arbitrary path. The roots
       default to none, and an operator sets them. Removing a folder calls
-      `unwatch`, which drops the index and leaves the files.
+      `unwatch`, which drops the index and leaves the files. A folder that is
+      gone from disk is unknown to the service, so `POST /api/workspace/forget`
+      removes it from the workspace file alone, and refuses a path the file does
+      not list.
 
       The workspace is stored by the Node server in `~/.synoptik/web.json`
       (directory mode 0700, file mode 0600), or under `$SYNOPTIK_WEB_HOME` when

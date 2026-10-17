@@ -989,7 +989,7 @@ js-test, domain-test and the 41 ambiguous occurrences did not move. It leaves
 8 sites. A Python function spelled like a name a Lisp script calls adds a site
 to that script (DES-0015); BUG-0073's first draft added four that way.")
 
-(defparameter *python-call-site-ceiling* 160
+(defparameter *python-call-site-ceiling* 128
   "The most :CALL-SITE entities Python files in this tree may hold.
 
 Measured 2026-10-05 at PLAN-0056 step 8: 116, which is 86 :MODULE sites and 30
@@ -1000,12 +1000,7 @@ purpose -- a call at a module's top level has no definition to start from, and
 looking dead -- and adding them to the Lisp ceiling would have taken its
 headroom to buy them. The Lisp population is 503 against 512 and the ambiguous
 count in it is 40. 128 is 116 plus 10% headroom, the rule the first measurement
-used.
-
-MEASURED 2026-10-17 AT 146, CEILING 160. src/web/scripts/make-fixture.py, the
-prototype's fixture generator (PLAN-0062 S0), is a script of module-level code
-like the ten under tools/, and with it the Python population is 146.
-160 is 146 plus 10% headroom.")
+used.")
 
 (test a-call-site-exists-only-where-a-calls-edge-from-a-definition-is-impossible
   ;; DES-0014 R2, over this tree rather than a fixture, because the ceiling is

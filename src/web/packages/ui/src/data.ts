@@ -2,11 +2,8 @@ import {
   Boxes, Bug, FileText, Gavel, Lightbulb, ListChecks, PenTool, ScanEye, ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import raw from "./fixture.json";
-import type { Doc, Filters, Repo } from "./types";
-
-export const DOCS: Doc[] = (raw as { docs: Doc[] }).docs;
-export const REPOS: Repo[] = (raw as { repositories: Omit<Repo, "state">[] }).repositories.map((r) => ({ ...r, state: "ready" as const }));
+import type { DocumentRow } from "@synoptik/client";
+import type { Doc, Filters } from "./types";
 
 // Ids are per repository (REQ-0073), so a document is known by its repository and id.
 export const key = (d: Doc) => `${d.repo}/${d.id}`;
@@ -22,7 +19,7 @@ export function refKey(ref: string, repo: string): string {
   return ref.startsWith("@") ? ref.slice(1) : `${repo}/${ref}`;
 }
 
-type Meta = { label: string; plural: string; icon: LucideIcon; color: string; column: number; creatable: boolean };
+export type Meta = { label: string; plural: string; icon: LucideIcon; color: string; column: number; creatable: boolean };
 
 // column is the left-to-right order the map draws: what is wanted, the shape of
 // the answer, the decisions, the steps, then defects and the rest.
@@ -37,10 +34,31 @@ export const TYPE_META: Record<string, Meta> = {
   CON: { label: "Concept", plural: "Concepts", icon: Lightbulb, color: "#ca8a04", column: 7, creatable: false },
   RULE: { label: "Rule", plural: "Rules", icon: ShieldCheck, color: "#475569", column: 8, creatable: false },
 };
+// Types the service files that are not in the table keep their prefix and a plain look.
+export const metaOf = (type: string): Meta => TYPE_META[type] ?? { label: type, plural: type, icon: FileText, color: "#64748b", column: 99, creatable: false };
 export const TYPE_ORDER = Object.keys(TYPE_META).sort((a, b) => TYPE_META[a].column - TYPE_META[b].column);
 
-export const STATUSES = Array.from(new Set(DOCS.map((d) => d.status))).filter(Boolean).sort();
-export const PRIORITIES = Array.from(new Set(DOCS.map((d) => d.priority))).filter(Boolean).sort();
+export const distinct = (values: string[]) => Array.from(new Set(values)).filter(Boolean).sort();
+
+// The type is the id's prefix; the service's own `type` is `document` for all of them.
+export const typeOfId = (id: string) => id.split("-")[0] ?? "";
+
+export function toDoc(repo: string, row: DocumentRow): Doc {
+  return {
+    repo,
+    id: row.id,
+    type: typeOfId(row.id),
+    title: row.title ?? "",
+    status: row.status ?? "",
+    priority: row.priority ?? "",
+    severity: row.severity ?? "",
+    date: row.date ?? "",
+    tags: row.tags ?? [],
+    refines: row.refines ?? [],
+    affects: row.affects ?? [],
+    path: row.path ?? "",
+  };
+}
 
 export function tagCounts(docs: Doc[]): [string, number][] {
   const m = new Map<string, number>();
@@ -111,30 +129,4 @@ export function widen(all: Doc[], matched: Set<string>, hops: number): Set<strin
     }
   }
   return seen;
-}
-
-export function nextId(docs: Doc[], repo: string, type: string): string {
-  const max = Math.max(0, ...docs.filter((d) => d.repo === repo && d.type === type).map((d) => parseInt(d.id.split("-")[1], 10)));
-  return `${type}-${String(max + 1).padStart(4, "0")}`;
-}
-
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// The text of a document as the file would hold it. A prototype serialiser: the
-// real one keeps the source and rewrites only what changed (DES-0057 D14).
-export function toYaml(d: Doc): string {
-  const list = (a: string[]) => `[${a.join(", ")}]`;
-  const block = (k: string, v: string) => (v ? `${k}: |\n${v.split("\n").map((l) => (l ? "  " + l : "")).join("\n")}\n` : "");
-  return [
-    `id: ${d.id}`,
-    `title: ${d.title}`,
-    `status: ${d.status}`,
-    d.priority ? `priority: ${d.priority}` : "",
-    `date: ${d.date}`,
-    `refines: ${list(d.refines)}`,
-    `affects: ${list(d.affects)}`,
-    `tags: ${list(d.tags)}`,
-  ].filter(Boolean).join("\n") + "\n" + block("summary", d.summary) + block("body", d.body);
 }

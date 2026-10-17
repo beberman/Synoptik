@@ -9,10 +9,8 @@ export type Doc = {
   tags: string[];
   refines: string[];
   affects: string[];
-  summary: string;
-  body: string;
+  severity: string;
   path: string;
-  isNew?: boolean;
 };
 
 export type Repo = {
@@ -21,6 +19,8 @@ export type Repo = {
   commit: string;
   documents: number;
   state: "ready" | "indexing" | "paused";
+  /** The folder is in the workspace file and no longer on disk. */
+  missing?: boolean;
 };
 
 export type Filters = {

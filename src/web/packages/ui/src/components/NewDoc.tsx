@@ -1,25 +1,22 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { TYPE_META, key, nextId, shortTitle, todayIso } from "../data";
+import { TYPE_META, key, shortTitle } from "../data";
 import { TypeIcon } from "./DocCard";
 import type { Doc } from "../types";
 
-const TEMPLATE: Record<string, { status: string; summary: string; body: string }> = {
-  REQ: { status: "draft", summary: "What is wanted, in two sentences a reader can check.",
-    body: "WHAT IS WANTED\n\nR1  \n\nACCEPTANCE\n\nWhat a reviewer does to see it met.\n\nOPEN QUESTIONS\n\n- " },
-  BUG: { status: "open", summary: "What happens, and what should happen.",
-    body: "WHAT HAPPENS\n\nREPRODUCTION\n\nEXPECTED\n\nCAUSE" },
-};
-
 export default function NewDoc({
-  all, repoNames, onCreate, onClose,
-}: { all: Doc[]; repoNames: string[]; onCreate: (d: Doc) => void; onClose: () => void }) {
+  ops, all, repoNames, defaultRepo, onCreated, onClose,
+}: {
+  ops: ReturnType<typeof import("@synoptik/client").operations>; all: Doc[]; repoNames: string[]; defaultRepo?: string;
+  onCreated: (repo: string, id: string, address: string) => Promise<void>; onClose: () => void;
+}) {
   const [type, setType] = useState<"REQ" | "BUG">("REQ");
   const [title, setTitle] = useState("");
   const [refines, setRefines] = useState<string[]>([]);
   const [q, setQ] = useState("");
-  const [repo, setRepo] = useState(repoNames.includes("Synoptik") ? "Synoptik" : repoNames[0]);
-  const id = nextId(all, repo, type);
+  const [repo, setRepo] = useState(defaultRepo && repoNames.includes(defaultRepo) ? defaultRepo : repoNames[0] ?? "");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const options = q ? all.filter((d) => (d.id + d.title + d.repo).toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
 
   return (
@@ -40,7 +37,7 @@ export default function NewDoc({
         <label className="mb-3 block text-xs text-mute">Repository
           <select className="input mt-1 text-ink" value={repo} onChange={(e) => setRepo(e.target.value)}>{repoNames.map((r) => <option key={r}>{r}</option>)}</select>
         </label>
-        <div className="mb-1 font-mono text-xs text-mute">Next free id in {repo}: {id}</div>
+        <div className="mb-1 text-xs text-mute">The service assigns the next free id in {repo} when this is created.</div>
         <input className="input mb-3" placeholder="Title, as a sentence a reader can check" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
         <div className="mb-1 text-xs text-mute">Refines (optional)</div>
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -56,13 +53,16 @@ export default function NewDoc({
             ))}
           </ul>
         )}
+        {problem && <p role="alert" className="mt-3 whitespace-pre-wrap text-sm text-red-600 dark:text-red-400">{problem}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!title.trim()} onClick={() => {
-            const t = TEMPLATE[type];
-            onCreate({ repo, id, type, title: title.trim(), status: t.status, priority: "", date: todayIso(), tags: [], refines,
-              affects: [], summary: t.summary, body: t.body, path: `docs/${type === "REQ" ? "requirements" : "bugs"}/${id}.yaml`, isNew: true });
-          }}>Create {id}</button>
+          <button className="btn btn-primary" disabled={!title.trim() || busy || !repo} onClick={async () => {
+            setBusy(true); setProblem(null);
+            try {
+              const made = await ops.createDocument(repo, type === "REQ" ? "req" : "bug", title.trim(), refines);
+              await onCreated(repo, made["doc-id"], made.address);
+            } catch (e: any) { setProblem(e?.message ?? String(e)); setBusy(false); }
+          }}>Create</button>
         </div>
       </div>
     </div>

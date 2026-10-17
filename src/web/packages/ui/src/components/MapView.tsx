@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { AlertTriangle } from "lucide-react";
 import DocCard from "./DocCard";
-import { TYPE_META, TYPE_ORDER, edgesOf, key } from "../data";
+import { metaOf, TYPE_ORDER, edgesOf, key } from "../data";
 import type { Doc } from "../types";
 
 const W = 232, H = 56, GX = 96, GY = 14, HEAD = 34;
@@ -64,7 +64,7 @@ export default function MapView({
         </svg>
         {cols.map((c, ci) => (
           <div key={c.type} className="absolute top-0 text-xs font-semibold uppercase tracking-wide text-mute" style={{ left: ci * (W + GX), width: W }}>
-            {TYPE_META[c.type].plural} <span className="font-normal">({c.docs.length})</span>
+            {metaOf(c.type).plural} <span className="font-normal">({c.docs.length})</span>
           </div>
         ))}
         {docs.map((d) => {

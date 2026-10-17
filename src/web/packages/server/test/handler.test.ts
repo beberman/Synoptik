@@ -139,6 +139,16 @@ describe("the workspace", () => {
     expect((await stores.workspace.read()).repositories).toEqual([]);
   });
 
+  it("forgets a folder that is gone without calling the service, and only one in the file", async () => {
+    const gone = join(roots, "gone");
+    await stores.updateWorkspace((w) => { w.repositories = [{ path: gone, paused: false }]; });
+    const h = createHandler({ serviceUrl: service.url, stores });
+    expect((await post(h, "/api/workspace/forget", { path: "/elsewhere" })).status).toBe(404);
+    expect((await post(h, "/api/workspace/forget", { path: gone })).status).toBe(200);
+    expect((await stores.workspace.read()).repositories).toEqual([]);
+    expect(service.seen).toHaveLength(0);
+  });
+
   it("replays watch and pause at startup and keeps a missing folder", async () => {
     const present = join(roots, "game-server");
     await stores.updateWorkspace((w) => { w.repositories = [{ path: present, paused: true }, { path: join(roots, "gone"), paused: false }]; });

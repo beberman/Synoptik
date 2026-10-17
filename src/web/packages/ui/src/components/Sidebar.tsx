@@ -1,5 +1,6 @@
 import { Search, X } from "lucide-react";
-import { PRIORITIES, REPOS, STATUSES, TYPE_META, TYPE_ORDER, repoColor, tagCounts } from "../data";
+import { TYPE_META, TYPE_ORDER, repoColor, tagCounts } from "../data";
+import { useWs } from "../context";
 import type { Doc, Filters } from "../types";
 
 export const EMPTY: Filters = { repos: [], types: [], statuses: [], priority: "", tag: "", text: "", widen: 0 };
@@ -9,6 +10,7 @@ export default function Sidebar({
 }: { docs: Doc[]; filters: Filters; set: (f: Filters) => void; counts: Record<string, number>; repoNames: string[]; onClose?: () => void; recent: Doc[]; onOpen: (key: string) => void }) {
   const toggle = (key: "repos" | "types" | "statuses", v: string) =>
     set({ ...filters, [key]: filters[key].includes(v) ? filters[key].filter((x) => x !== v) : [...filters[key], v] });
+  const { statuses, priorities } = useWs();
   const tags = tagCounts(docs).slice(0, 40);
 
   return (
@@ -28,7 +30,7 @@ export default function Sidebar({
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Repository</h3>
         <div className="flex flex-wrap gap-1.5">
           {repoNames.map((r) => {
-            const on = filters.repos.includes(r), c = repoColor(r, REPOS.map((x) => x.name));
+            const on = filters.repos.includes(r), c = repoColor(r, repoNames);
             return (
               <button key={r} onClick={() => toggle("repos", r)} className={`chip min-h-[44px] md:min-h-[32px] ${on ? "!border-transparent text-white" : ""}`}
                 style={on ? { background: c } : undefined}>
@@ -58,7 +60,7 @@ export default function Sidebar({
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Status</h3>
         <div className="flex flex-wrap gap-1.5">
-          {STATUSES.map((s) => (
+          {statuses.map((s) => (
             <button key={s} onClick={() => toggle("statuses", s)}
               className={`chip min-h-[44px] md:min-h-[32px] ${filters.statuses.includes(s) ? "!border-accent !bg-accent/15 text-accent" : ""}`}>
               {s}
@@ -72,7 +74,7 @@ export default function Sidebar({
           <select className="input mt-1 font-normal normal-case" value={filters.priority}
             onChange={(e) => set({ ...filters, priority: e.target.value })}>
             <option value="">any</option>
-            {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+            {priorities.map((p) => <option key={p}>{p}</option>)}
           </select>
         </label>
         <label className="text-xs font-semibold uppercase tracking-wide text-mute">Tag

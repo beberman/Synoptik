@@ -1,31 +1,37 @@
 import { useMemo, useState } from "react";
+import type { Client, operations } from "@synoptik/client";
 import { ArrowRight, X, ListChecks } from "lucide-react";
 import Editor from "./Editor";
 import DocCard, { TypeIcon } from "./DocCard";
-import { TYPE_META, indexByKey, key, refKey } from "../data";
+import { metaOf, indexByKey, key, refKey } from "../data";
 import type { Doc } from "../types";
 
 export default function DocPanel({
-  doc, all, onClose, onSelect, onSave, toast,
-}: { doc: Doc; all: Doc[]; onClose: () => void; onSelect: (id: string) => void; onSave: (d: Doc) => void; toast: (m: string) => void }) {
+  client, ops, doc, all, onClose, onSelect, toast, reload,
+}: {
+  client: Client; ops: ReturnType<typeof operations>; doc: Doc; all: Doc[]; onClose: () => void;
+  onSelect: (id: string) => void; toast: (m: string) => void; reload: () => Promise<void>;
+}) {
   const [tab, setTab] = useState<"edit" | "relations">("edit");
-  const [dry, setDry] = useState(false);
+  const [dry, setDry] = useState<string | null>(null);
   const byKey = useMemo(() => indexByKey(all), [all]);
   const refinedBy = all.filter((d) => d.refines.some((r) => refKey(r, d.repo) === key(doc)));
 
-  const dryRun = [
-    `${doc.id}  status ${doc.status} -> final`,
-    ...doc.refines.filter((r) => byKey.has(refKey(r, doc.repo))).map((r) => `${r}  status ${byKey.get(refKey(r, doc.repo))!.status} -> implemented   (needs a verdict)`),
-    "",
-    "Dry run. Nothing is written. Give each document its verdict to apply.",
-  ].join("\n");
+  // The service computes what completing a plan would do. Without verdicts it
+  // writes nothing, and this shows that answer as it arrived.
+  const dryRun = async () => {
+    try {
+      const answer = await client("POST", "/api/v1/complete", { repository: doc.repo, plan: doc.id });
+      setDry(JSON.stringify(answer, null, 2));
+    } catch (e: any) { setDry(e?.message ?? String(e)); }
+  };
 
   return (
     <div className="flex h-full flex-col bg-panel">
       <div className="flex items-start gap-3 border-b border-line p-3">
         <TypeIcon type={doc.type} size={40} />
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-xs text-mute">{doc.repo} · {doc.id} · {TYPE_META[doc.type].label} · {doc.path}</div>
+          <div className="font-mono text-xs text-mute">{doc.repo} · {doc.id} · {metaOf(doc.type).label} · {doc.path}</div>
           <div className="truncate text-sm font-semibold" title={doc.title}>{doc.title}</div>
         </div>
         <button className="btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
@@ -37,13 +43,12 @@ export default function DocPanel({
             {t === "edit" ? "Edit" : "Relationships"}
           </button>
         ))}
-        {doc.type === "PLAN" && <button className="btn ml-auto mb-1" onClick={() => setDry(true)}><ListChecks size={16} /> Complete…</button>}
+        {doc.type === "PLAN" && <button className="btn ml-auto mb-1" onClick={() => void dryRun()}><ListChecks size={16} /> Complete…</button>}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "edit" ? (
-          <Editor doc={doc} all={all} onSave={onSave} toast={toast}
-            onStatus={(s) => toast(`In the real UI this runs set-status ${doc.id} ${s} and files the document.`)} />
+          <Editor ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
         ) : (
           <div className="space-y-5 p-4">
             <Group title="Refines" empty="Refines nothing.">
@@ -61,12 +66,12 @@ export default function DocPanel({
         )}
       </div>
 
-      {dry && (
+      {dry !== null && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-6">
           <div className="w-full max-w-xl rounded-t-2xl bg-panel p-4 shadow-xl sm:rounded-2xl">
             <h3 className="mb-2 text-lg font-semibold">complete {doc.id} — dry run</h3>
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-line/30 p-3 font-mono text-xs">{dryRun}</pre>
-            <div className="mt-3 flex justify-end"><button className="btn btn-primary" onClick={() => setDry(false)}>Close</button></div>
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-line/30 p-3 font-mono text-xs">{dry}</pre>
+            <div className="mt-3 flex justify-end"><button className="btn btn-primary" onClick={() => setDry(null)}>Close</button></div>
           </div>
         </div>
       )}

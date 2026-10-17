@@ -1,4 +1,5 @@
-import { REPOS, TYPE_META, repoColor, shortTitle } from "../data";
+import { TYPE_META, metaOf, repoColor, shortTitle } from "../data";
+import { useWs } from "../context";
 import type { Doc } from "../types";
 
 const STATUS_DOT: Record<string, string> = {
@@ -8,7 +9,7 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 export function TypeIcon({ type, size = 36 }: { type: string; size?: number }) {
-  const m = TYPE_META[type];
+  const m = metaOf(type);
   const Icon = m.icon;
   return (
     <span
@@ -22,7 +23,7 @@ export function TypeIcon({ type, size = 36 }: { type: string; size?: number }) {
 }
 
 export function RepoPill({ name }: { name: string }) {
-  const c = repoColor(name, REPOS.map((r) => r.name));
+  const c = repoColor(name, useWs().repoNames);
   return <span className="ml-auto truncate rounded px-1.5 text-[10px] font-semibold" style={{ background: c + "22", color: c }}>{name}</span>;
 }
 
@@ -48,7 +49,6 @@ export default function DocCard({
           {doc.id}
           <StatusDot status={doc.status} />
           {!showRepo && <span>{doc.status}</span>}
-          {doc.isNew && <span className="rounded bg-accent/15 px-1 text-accent">new</span>}
           {showRepo && <RepoPill name={doc.repo} />}
         </span>
         <span className="block truncate text-sm font-medium">{shortTitle(doc.title)}</span>

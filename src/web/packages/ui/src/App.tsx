@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, FileText, Filter, GitBranch, LayoutGrid, List, Moon, Network, Plus, Sun } from "lucide-react";
+import type { Client } from "@synoptik/client";
 import Sidebar, { EMPTY } from "./components/Sidebar";
 import MapView from "./components/MapView";
 import DocCard from "./components/DocCard";
@@ -7,54 +8,49 @@ import DocPanel from "./components/DocPanel";
 import Agents from "./components/Agents";
 import NewDoc from "./components/NewDoc";
 import Workspace from "./components/Workspace";
-import { DOCS, REPOS, key, matches, widen } from "./data";
-import type { AdapterMode, Doc, Filters, Repo } from "./types";
+import { WsContext } from "./context";
+import { distinct, key, matches, widen } from "./data";
+import { loadUiState, useUiState, useWorkspaceData, type UiState } from "./state";
+import type { AdapterMode, Doc, Filters } from "./types";
 
 const MAP_LIMIT = 90;
 type Panel = "agents" | "workspace" | null;
 
-function loadUi(): { filters?: Filters; view?: "map" | "list"; dark?: boolean; selected?: string | null; recent?: string[] } {
-  try { return JSON.parse(localStorage.getItem("synoptik-ui") ?? "{}"); } catch { return {}; }
+export default function App({ client }: { client: Client }) {
+  const { ops, docs, repos, error, loaded, damaged, reload } = useWorkspaceData(client);
+  const [saved, setSaved] = useState<UiState | null>(null);
+  useEffect(() => { void loadUiState(client).then(setSaved); }, [client]);
+  if (!saved || !loaded) return <div className="p-6 text-sm text-mute">Loading…</div>;
+  return <Shell client={client} ops={ops} docs={docs} repos={repos} error={error} damaged={damaged} reload={reload} saved={saved} />;
 }
 
-export default function App() {
-  const [docs, setDocs] = useState<Doc[]>(DOCS);
-  // Stands in for ~/.synoptik/web.json (DES-0057 D16); the real store is on the Node server.
-  const [repos, setRepos] = useState<Repo[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("synoptik-workspace") ?? "null") as Repo[] | null;
-      if (Array.isArray(saved)) return saved.map((r) => ({ ...r, state: r.state === "paused" ? "paused" : "ready" }));
-    } catch { /* storage unavailable or unparsable: start from the default */ }
-    return REPOS;
-  });
-  // Stands in for ~/.synoptik/ui-state.json (DES-0057 D17): filters, view, theme,
-  // the open document and the documents last opened.
-  const saved = useMemo(loadUi, []);
-  const [filters, setFilters] = useState<Filters>(saved.filters ?? { ...EMPTY, types: ["REQ"], tag: "multi-user", widen: 2 });
+function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
+  client: Client; ops: ReturnType<typeof useWorkspaceData>["ops"]; docs: Doc[]; repos: ReturnType<typeof useWorkspaceData>["repos"];
+  error: string | null; damaged: string | null; reload: () => Promise<void>; saved: UiState;
+}) {
+  const [filters, setFilters] = useState<Filters>(saved.filters ?? { ...EMPTY, types: ["REQ"], widen: 1 });
   const [selected, setSelected] = useState<string | null>(saved.selected ?? null);
   const [recent, setRecent] = useState<string[]>(saved.recent ?? []);
   const [view, setView] = useState<"map" | "list">(saved.view ?? (window.matchMedia("(max-width: 767px)").matches ? "list" : "map"));
   const [showFilters, setShowFilters] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [showNew, setShowNew] = useState(false);
-  const [mode, setMode] = useState<AdapterMode>("full");
+  const [mode, setMode] = useState<AdapterMode>("none");
   const [dark, setDark] = useState(() => saved.dark ?? window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => { document.documentElement.classList.toggle("dark", dark); }, [dark]);
   useEffect(() => { if (!message) return; const t = setTimeout(() => setMessage(null), 3500); return () => clearTimeout(t); }, [message]);
-
-  // The workspace is the set of folders the service watches. A removed folder's
-  // documents are gone from every view; a paused one keeps its index.
-  useEffect(() => {
-    try { localStorage.setItem("synoptik-workspace", JSON.stringify(repos)); } catch { /* ignore */ }
-  }, [repos]);
-  useEffect(() => {
-    try { localStorage.setItem("synoptik-ui", JSON.stringify({ filters, view, dark, selected, recent })); } catch { /* ignore */ }
-  }, [filters, view, dark, selected, recent]);
+  useUiState(client, { filters, view, dark, selected, recent }, true);
   useEffect(() => { if (selected) setRecent((r) => [selected, ...r.filter((k) => k !== selected)].slice(0, 8)); }, [selected]);
-  const inWorkspace = useMemo(() => docs.filter((d) => repos.some((r) => r.name === d.repo)), [docs, repos]);
-  const repoNames = repos.map((r) => r.name);
+
+  const ws = useMemo(() => ({
+    repoNames: repos.map((r) => r.name),
+    statuses: distinct(docs.map((d) => d.status)),
+    priorities: distinct(docs.map((d) => d.priority)),
+  }), [repos, docs]);
+  const inWorkspace = docs;
+  const repoNames = ws.repoNames;
 
   const { visible, matchedCount } = useMemo(() => {
     const matched = new Set(inWorkspace.filter((d) => matches(d, filters)).map(key));
@@ -79,11 +75,11 @@ export default function App() {
   );
 
   return (
+    <WsContext.Provider value={ws}>
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-1.5 border-b border-line bg-panel px-2 py-2 sm:gap-2 sm:px-3">
         <FileText size={20} className="text-accent" />
         <span className="font-semibold">Synoptik</span>
-        <span className="ml-1 hidden rounded bg-amber-500/20 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 sm:inline">prototype · fixture data · nothing is written</span>
         <span className="flex-1" />
         <button className="btn md:hidden" onClick={() => setShowFilters(true)} aria-label="Filters"><Filter size={16} /></button>
         <button className="btn btn-primary" onClick={() => setShowNew(true)}><Plus size={16} /><span className="hidden sm:inline">New</span></button>
@@ -95,7 +91,8 @@ export default function App() {
         </button>
         <button className="btn" onClick={() => setDark(!dark)} aria-label="Toggle theme">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
       </header>
-      <div className="bg-amber-500/20 px-3 py-1 text-center text-[11px] font-medium text-amber-700 dark:text-amber-400 sm:hidden">prototype · fixture data · nothing is written</div>
+      {error && <div role="alert" className="bg-red-500/15 px-3 py-1.5 text-center text-xs font-medium text-red-600 dark:text-red-400">The service did not answer: {error}</div>}
+      {damaged && <div role="alert" className="bg-amber-500/20 px-3 py-1.5 text-center text-xs font-medium text-amber-700 dark:text-amber-400">~/.synoptik/web.json does not parse ({damaged}). Workspace changes are not saved until it is fixed or deleted.</div>}
 
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 border-r border-line bg-panel md:block">{sidebar()}</aside>
@@ -139,14 +136,12 @@ export default function App() {
               <div className={doc ? "h-1/3 border-b border-line" : "h-full"}>
                 {panel === "agents"
                   ? <Agents mode={mode} setMode={setMode} onClose={() => setPanel(null)} toast={setMessage} />
-                  : <Workspace repos={repos} setRepos={setRepos} counts={counts} onClose={() => setPanel(null)} toast={setMessage}
-                      onIndexed={(name) => setTimeout(() => setRepos((cur) => cur.map((r) => r.name === name ? { ...r, state: "ready", commit: "a1b2c3d" } : r)), 1800)} />}
+                  : <Workspace client={client} repos={repos} counts={counts} reload={reload} onClose={() => setPanel(null)} toast={setMessage} />}
               </div>
             )}
             {doc && (
               <div className="min-h-0 flex-1">
-                <DocPanel key={key(doc)} doc={doc} all={inWorkspace} onClose={() => setSelected(null)} onSelect={setSelected} toast={setMessage}
-                  onSave={(d) => setDocs(docs.map((x) => (key(x) === key(d) ? d : x)))} />
+                <DocPanel key={key(doc)} client={client} ops={ops} doc={doc} all={inWorkspace} onClose={() => setSelected(null)} onSelect={setSelected} toast={setMessage} reload={reload} />
               </div>
             )}
           </aside>
@@ -154,9 +149,10 @@ export default function App() {
       </div>
 
       {showFilters && <div className="fixed inset-0 z-50 bg-panel md:hidden">{sidebar(() => setShowFilters(false))}</div>}
-      {showNew && <NewDoc all={inWorkspace} repoNames={repoNames} onClose={() => setShowNew(false)}
-        onCreate={(d) => { setDocs([d, ...docs]); setShowNew(false); setSelected(key(d)); setMessage(`Created ${d.id} in ${d.repo}. The real UI writes ${d.path}.`); }} />}
+      {showNew && <NewDoc ops={ops} all={inWorkspace} repoNames={repoNames} defaultRepo={doc?.repo ?? filters.repos[0]} onClose={() => setShowNew(false)}
+        onCreated={async (repo, id, address) => { setShowNew(false); await reload(); setSelected(`${repo}/${id}`); setMessage(`Created ${id} in ${repo} at ${address}.`); }} />}
       {message && <div className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-ink px-4 py-2 text-sm text-bg shadow-lg">{message}</div>}
     </div>
+      </WsContext.Provider>
   );
 }
