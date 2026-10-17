@@ -259,15 +259,16 @@ body: |
     documented. R10 therefore holds for CloudCLI as list and launch, with every
     session's status `unknown`, and stop, status and approve unreported. Not run
     against a live CloudCLI.
-  - Whether Tailwind builds into a shadow root as DEC-0011 requires. Its
-    `rem` sizes follow the host's root font size, and Tailwind 4's `@property`
-    rules are reported not to apply inside a shadow root. A spike that mounts a
-    styled page into a shadow root, with the plugin starter's build, settles the
-    major version before components are written.
-  - How a plugin tab appears on a phone. CloudCLI is responsive and installable
-    as a PWA, with a bottom bar for Chat, Files, Git and Settings. Its mobile
-    page does not mention plugins, so whether a plugin tab is reachable there,
-    and at what width it renders, is not established. R13 depends on it.
+  - Tailwind in a shadow root is settled by spike S1 (DEC-0011): Tailwind 3
+    works, Tailwind 4 draws no shadows, rings or gradients there, and `rem` is
+    rewritten to `px` in the plugin build.
+  - A CloudCLI 1.37.5 plugin tab is reachable on a 360 px phone once a project
+    is open: the tab bar shows the plugin's icon at 34 by 32 px, and the plugin
+    renders at the full 360 px with no horizontal scroll. CloudCLI's own tab
+    buttons are the same size, so R13's 44 px does not hold for the tab button,
+    which CloudCLI draws. The loader installs from a git clone of a repository
+    whose root holds `manifest.json`, and accepts only `https://` or `git@`
+    URLs, so a subdirectory of this repository cannot be a plugin.
   - Cross-repository links wait on REQ-0073, which is a draft. Until it lands,
     a reference such as `@game-server/REQ-0001` is unresolved, and the map shows
     links inside each repository only.

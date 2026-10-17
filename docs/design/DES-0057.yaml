@@ -258,9 +258,10 @@ body: |
       components into it, and gives overlay components the root as their portal
       container. The theme is a `data-theme` attribute on the root's wrapper
       element: the plugin sets it from `api.context.theme` and the shell from
-      `prefers-color-scheme`. The tests in D12 fix DEC-0011's two open points:
-      the unit that `rem` resolves to inside the root, and whether the Tailwind
-      major version chosen draws its shadows and gradients there.
+      `prefers-color-scheme`. Spike S1 settled DEC-0011's two open points:
+      Tailwind 3 is used because Tailwind 4 draws no shadows, rings or gradients
+      in a shadow root, and the plugin build rewrites `rem` to `px` because
+      `rem` follows the host's root font size.
 
   AGENTS
 

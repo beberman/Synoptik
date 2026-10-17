@@ -199,8 +199,7 @@ body: |
       the service refuses to read either by id and says so, which is the right
       answer and a defect in that tree. A browser run (`src/web/e2e/run.mjs`)
       adds a folder, edits, hits a conflict, creates, checks 44 px targets at
-      360 px and removes the folder, in a scratch repository. Not yet done: S1,
-      S14, a phone over a real network, and the acceptance run's remaining items.
+      360 px and removes the folder, in a scratch repository. Not yet done: S14, a phone over a real network, and the acceptance run's remaining items.
 
   RISKS
 
