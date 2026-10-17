@@ -113,13 +113,29 @@ any other request error. Over MCP it becomes a tool result with :error true and
 the text intact, which is what an agent reads and acts on -- so the message
 says what to do, not merely what went wrong."))
 
+(define-condition version-conflict (request-error)
+  ((message :initarg :message
+            :initform "the document changed after it was read"
+            :reader request-message)
+   (current :initarg :current :initform nil :reader version-conflict-current))
+  (:report (lambda (condition stream)
+             (write-string (request-message condition) stream)))
+  (:documentation "A write made from a version that is no longer the stored one.
+
+REQ-0080 R5, DES-0057 D1. Nothing was written. CURRENT is a plist of :TEXT and
+:VERSION as the store holds them now, which the REST skin sends back under
+`current' with a 409 so a client can show both texts and let a person choose
+without a second request."))
+
 (defun operation-error->plist (condition)
   "CONDITION as the (:name :message) pair R8 commits to.
 
 TYPE-OF rather than a hand-maintained mapping: the point of the shape is that
 it survives a future condition hierarchy arriving underneath it."
-  (list :name (string (type-of condition))
-        :message (princ-to-string condition)))
+  (append (list :name (string (type-of condition))
+                :message (princ-to-string condition))
+          (when (typep condition 'version-conflict)
+            (list :current (version-conflict-current condition)))))
 
 (deftype guarded-condition ()
   "Everything a request handler must catch. R8's type, named once.

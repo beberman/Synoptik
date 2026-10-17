@@ -754,7 +754,7 @@ the second for the first is the defect" json-price console-price)
 
 (defparameter *whole-repository-reads*
   '(:check :rules :structure :drift :survey :check-document :status
-    :server-status)
+    :server-status :documents :read-document)
   "Read operations that answer about a whole repository by construction.
 
 R-i is the one silent wrong answer DES-0047 leaves reachable: scoping is
@@ -772,6 +772,8 @@ Every read operation is either scoped or named here with a reason:
   survey              compares two repositories, so a domain of one is not the
                       unit
   check-document      answers about one document by path
+  documents,          answer about the documents of a repository by id; a domain
+  read-document       partitions code, and REQ-0080 lists documents in every one
   status              reports the repository's state; the import split it
                       carries is already per repository
   server-status       answers about the service and takes no repository at
@@ -1035,3 +1037,78 @@ listed as answering about a whole repository. Decide which it is and say so in ~
                                        (list :repository name :term "no-such-entity-anywhere")))
       (is (zerop (synoptik-workspace::repository-readers repository))
           "a describe that failed left its hold in place"))))
+
+;;; ------------------------------------------------------------------
+;;; Documents as text (REQ-0080, DES-0057 D1)
+;;; ------------------------------------------------------------------
+
+(test documents-lists-each-document-with-what-the-explorer-filters-on
+  (with-operations-fixture (repository)
+    (let* ((answer (call-operation :documents '(:read)
+                                   :repository (repository-name repository)))
+           (listed (getf answer :documents))
+           (decision (find "DEC-0001" listed :key (lambda (d) (getf d :id)) :test #'equal)))
+      (is-true decision)
+      (is (equal "Alpha stays arithmetic" (getf decision :title)))
+      (is (eq :accepted (getf decision :status)))
+      (is (equal '("alpha") (getf decision :affects)))
+      (is (equal "docs/decisions/DEC-0001.yaml" (getf decision :path)))
+      (is-true (find "RULE-0001" listed :key (lambda (d) (getf d :id)) :test #'equal))
+      (is-true (getf (call-operation :documents '(:read)) :repositories)
+               "without a repository, every repository is answered"))))
+
+(test a-document-is-read-written-and-refused-when-stale
+  ;; CON-0003: without the version comparison the second write lands and no
+  ;; VERSION-CONFLICT is signalled.
+  (with-operations-fixture (repository)
+    (let* ((name (repository-name repository))
+           (read (call-operation :read-document '(:read)
+                                 :repository name :document "DEC-0001"))
+           (first-text (concatenate 'string (getf read :text) "tags: [first]" (string #\Newline)))
+           (second-text (concatenate 'string (getf read :text) "tags: [second]" (string #\Newline))))
+      (let ((saved (call-operation :write-document '(:read :write)
+                                   :repository name :document "DEC-0001"
+                                   :text first-text :version (getf read :version))))
+        (is (eq t (getf saved :changed)))
+        (is (getf (getf saved :check) :references)
+            "the answer carries the reference check of the text written"))
+      (handler-case
+          (progn (call-operation :write-document '(:read :write)
+                                 :repository name :document "DEC-0001"
+                                 :text second-text :version (getf read :version))
+                 (fail "a stale write was accepted"))
+        (version-conflict (condition)
+          (is (equal first-text (getf (version-conflict-current condition) :text))
+              "the conflict carries the text now stored")
+          (is (equal first-text
+                     (synoptik-utils:read-file
+                      (merge-pathnames "docs/decisions/DEC-0001.yaml"
+                                       *operations-fixture-root*)))
+              "the first writer's text is what the file holds"))))))
+
+(test create-document-makes-a-requirement-and-refuses-a-design
+  (with-operations-fixture (repository)
+    (let* ((name (repository-name repository))
+           (made (call-operation :create-document '(:read :write)
+                                 :repository name :category "req"
+                                 :title "Alpha is documented" :refines "DEC-0001")))
+      (is (equal "REQ-0001" (getf made :doc-id)))
+      (is-true (probe-file (merge-pathnames "docs/requirements/REQ-0001.yaml"
+                                            *operations-fixture-root*))))
+    (signals malformed-request
+      (call-operation :create-document '(:read :write)
+                      :repository (repository-name repository)
+                      :category "design" :title "Not here"))))
+
+(test the-document-writes-need-the-write-tier
+  (with-operations-fixture (repository)
+    (signals capability-error
+      (call-operation :write-document '(:read)
+                      :repository (repository-name repository) :document "DEC-0001"
+                      :text "x" :version "1-0"))
+    (signals capability-error
+      (call-operation :create-document '(:read)
+                      :repository (repository-name repository)
+                      :category "req" :title "x"))
+    (finishes (call-operation :read-document '(:read)
+                              :repository (repository-name repository) :document "DEC-0001"))))

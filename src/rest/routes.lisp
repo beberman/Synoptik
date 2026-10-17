@@ -81,6 +81,7 @@ a 400, which is the distinction the subtype exists to carry."
     ;; 500 this fell through to before would log a server fault for the ordinary
     ;; state of a service that has just started.
     (repository-indexing hunchentoot:+http-service-unavailable+)
+    (version-conflict hunchentoot:+http-conflict+)
     (malformed-request hunchentoot:+http-bad-request+)
     (t hunchentoot:+http-internal-server-error+)))
 

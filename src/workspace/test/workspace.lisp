@@ -714,7 +714,7 @@ the files whichever way it got there"))))
 ;;; The :CALL-SITE ceiling (DES-0014 R2)
 ;;; ------------------------------------------------------------------
 
-(defparameter *call-site-ceiling* 520
+(defparameter *call-site-ceiling* 540
   "The most :CALL-SITE entities this tree may hold before something is wrong.
 
 DES-0014 refused a node per call-name occurrence -- 4867 nodes against 1604
@@ -971,6 +971,14 @@ CON-0001 rules out. 520 is the user's figure and is not 512 plus 10%: the rule
 the earlier entries used would give 563. It leaves 8 sites, enough for the
 next command and its operation, and the census names the cause of any later
 rise.
+
+MEASURED 2026-10-17 AT 531, CEILING 540. PLAN-0062 S4 and S5 added
+document-edit.lisp and the :documents, :read-document, :write-document and
+:create-document operations. The census reads 528 with the ceiling test's
+population at 531. The growth is the four define-operation bodies and the
+tests for them, each call in a body being a site by DES-0014. Nothing began
+minting for a new reason. 540 is 531 plus the headroom the earlier figures
+kept.
 
 MEASURED 2026-10-11 AT 512, CEILING UNCHANGED. BUG-0073 gave synoptik-serve's
 *TEST-PORT* an initform, (FREE-PORT), where it was the literal 47180. The
