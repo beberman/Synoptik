@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Stores, assertBindable, createHandler, restoreWorkspace, startListener } from "../src/index.js";
 import { fakeService } from "./fake-service.js";
+import { BaseAdapter, CloudCliAdapter, NativeAdapter } from "@synoptik/agents";
 
 let home: string, roots: string, service: Awaited<ReturnType<typeof fakeService>>, stores: Stores;
 
@@ -200,5 +201,48 @@ describe("static files", () => {
     expect(escape.status).toBe(404);
     server.close();
     await rm(dist, { recursive: true, force: true });
+  });
+});
+
+describe("agents", () => {
+  class Slow extends BaseAdapter {
+    id = "slow"; name = "Slow"; release!: () => void; launched: unknown[] = [];
+    async capabilities() { return { supported: ["list" as const, "launch" as const], notes: {} }; }
+    async list() { return [{ id: "s", task: "t", repository: "r", status: "working" as const, since: "" }]; }
+    launch(r: any) { this.launched.push(r); return new Promise<any>((res) => { this.release = () => res({}); }); }
+  }
+
+  it("lists adapters with what each can do", async () => {
+    const h = createHandler({ serviceUrl: service.url, stores, adapters: [new NativeAdapter()] });
+    const body = await (await get(h, "/api/agents")).json();
+    expect(body.adapters[0]).toMatchObject({ id: "native", capabilities: { supported: [] } });
+  });
+
+  it("answers a launch at once and records how it ended", async () => {
+    const slow = new Slow();
+    const h = createHandler({ serviceUrl: service.url, stores, adapters: [slow] });
+    const response = await post(h, "/api/agents/slow/launch", { repository: "r", task: "do" });
+    expect(response.status).toBe(202);
+    expect((await (await get(h, "/api/agents")).json()).launches[0].state).toBe("running");
+    slow.release();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await (await get(h, "/api/agents")).json()).launches[0].state).toBe("finished");
+  });
+
+  it("refuses a launch the adapter did not claim, and an unknown adapter", async () => {
+    const h = createHandler({ serviceUrl: service.url, stores, adapters: [new NativeAdapter()] });
+    expect((await post(h, "/api/agents/native/launch", { repository: "r", task: "t" })).status).toBe(501);
+    expect((await post(h, "/api/agents/none/launch", { repository: "r", task: "t" })).status).toBe(404);
+  });
+
+  it("a launch needs the token when one is set", async () => {
+    const h = createHandler({ serviceUrl: service.url, stores, token: "s", adapters: [new Slow()] });
+    expect((await post(h, "/api/agents/slow/launch", { repository: "r", task: "t" })).status).toBe(401);
+  });
+
+  it("serves a CloudCLI adapter's sessions", async () => {
+    const adapter = new CloudCliAdapter({ baseUrl: "http://c", token: "t", fetch: (async () => new Response(JSON.stringify([{ displayName: "p", sessions: [{ id: "x", summary: "s" }] }]))) as any });
+    const h = createHandler({ serviceUrl: service.url, stores, adapters: [adapter] });
+    expect((await (await get(h, "/api/agents/cloudcli/sessions")).json()).sessions[0].id).toBe("x");
   });
 });

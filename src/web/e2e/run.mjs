@@ -99,6 +99,11 @@ try {
   await page.waitForSelector("text=Created REQ-0002", { timeout: 20000 });
   check("a created requirement is on disk", existsSync(join(repo, "docs/requirements/REQ-0002.yaml")));
 
+  await page.click("button[aria-label=Agents]");
+  await page.waitForSelector("text=Synoptik >> nth=1", { timeout: 10000 }).catch(() => {});
+  check("the agents panel names what the native adapter cannot do", (await page.locator("text=not which session").count()) > 0);
+  await page.click("button[aria-label='Close agents']");
+
   await page.waitForTimeout(1500);
   const state = JSON.parse(readFileSync(join(home, "ui-state.json"), "utf8"));
   check("interface state was saved", state.view === "map" || state.view === "list");

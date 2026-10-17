@@ -11,7 +11,7 @@ import Workspace from "./components/Workspace";
 import { WsContext } from "./context";
 import { distinct, key, matches, widen } from "./data";
 import { loadUiState, useUiState, useWorkspaceData, type UiState } from "./state";
-import type { AdapterMode, Doc, Filters } from "./types";
+import type { Doc, Filters } from "./types";
 
 const MAP_LIMIT = 90;
 type Panel = "agents" | "workspace" | null;
@@ -35,7 +35,6 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
   const [showFilters, setShowFilters] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [showNew, setShowNew] = useState(false);
-  const [mode, setMode] = useState<AdapterMode>("none");
   const [dark, setDark] = useState(() => saved.dark ?? window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -135,7 +134,7 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
             {panel && (
               <div className={doc ? "h-1/3 border-b border-line" : "h-full"}>
                 {panel === "agents"
-                  ? <Agents mode={mode} setMode={setMode} onClose={() => setPanel(null)} toast={setMessage} />
+                  ? <Agents client={client} repos={repos} onClose={() => setPanel(null)} toast={setMessage} />
                   : <Workspace client={client} repos={repos} counts={counts} reload={reload} onClose={() => setPanel(null)} toast={setMessage} />}
               </div>
             )}

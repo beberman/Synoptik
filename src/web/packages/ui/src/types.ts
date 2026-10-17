@@ -50,4 +50,3 @@ export type Session = {
   since: string;
 };
 
-export type AdapterMode = "full" | "list-only" | "none";

@@ -115,9 +115,8 @@ body: |
       passes `check-document`.
 
   S5  Registry operations in `src/serve/operations.lisp`: `documents`,
-      `read-document`, `write-document`, `create-document`, and `context-log`
-      once S12's native adapter needs it and a record is known to carry what it
-      must. `write-document` answers the `check-document` result for the text it
+      `read-document`, `write-document` and `create-document`. `context-log` is not built: a
+      retrieval record names no session (DES-0057 D9). `write-document` answers the `check-document` result for the text it
       wrote. The four are on REST only: MCP lists its tools by hand
       (`src/mcp/tools.lisp`) and an agent edits the file in its worktree, so the
       MCP tool set, its test and `mcp-manifest.json` do not change. A write made

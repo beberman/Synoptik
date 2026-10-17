@@ -9,10 +9,12 @@
 //   SYNOPTIK_UI_TOKEN   bearer token; required for any non-loopback host
 //   SYNOPTIK_UI_STATIC  the directory served   default apps/standalone/dist
 //   SYNOPTIK_WEB_HOME   where web.json lives   default ~/.synoptik
+//   SYNOPTIK_CLOUDCLI_URL / _TOKEN / _API_KEY   turn on the CloudCLI agent adapter
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { createHandler, restoreWorkspace } from "./handler.js";
 import { startListener } from "./listener.js";
+import { CloudCliAdapter, NativeAdapter, type AgentController } from "@synoptik/agents";
 import { Stores } from "./store.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -23,8 +25,16 @@ const token = process.env.SYNOPTIK_UI_TOKEN || undefined;
 const staticDir = resolve(process.env.SYNOPTIK_UI_STATIC ?? resolve(here, "../../../apps/standalone/dist"));
 
 const stores = new Stores();
+const adapters: AgentController[] = [new NativeAdapter()];
+if (process.env.SYNOPTIK_CLOUDCLI_URL) {
+  adapters.push(new CloudCliAdapter({
+    baseUrl: process.env.SYNOPTIK_CLOUDCLI_URL,
+    token: process.env.SYNOPTIK_CLOUDCLI_TOKEN || undefined,
+    apiKey: process.env.SYNOPTIK_CLOUDCLI_API_KEY || undefined,
+  }));
+}
 try {
-  const server = await startListener({ host, port, token, staticDir, handler: createHandler({ serviceUrl, token, stores }) });
+  const server = await startListener({ host, port, token, staticDir, handler: createHandler({ serviceUrl, token, stores, adapters }) });
   console.log(`synoptik-ui listening on http://${host}:${port}/ for ${serviceUrl}${token ? " (token required)" : ""}`);
   for (const sig of ["SIGTERM", "SIGINT"] as const) process.on(sig, () => server.close(() => process.exit(0)));
 } catch (error: any) {

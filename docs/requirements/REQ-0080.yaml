@@ -252,9 +252,13 @@ body: |
     which can run any code the repository holds. It must therefore build the
     components from a published package or a pinned source, and the build
     step is part of what a user trusts.
-  - What CloudCLI's REST API exposes for launching and stopping a session. The
-    README lists the API as present and names no routes. R10 is bounded by
-    this, and the plugin route is not.
+  - CloudCLI's REST API (read from its source, 2026-10-17) lists sessions
+    through `GET /api/projects` with a JWT and starts a run through
+    `POST /api/agent` with an API key. It has no stop route and no
+    running-state route; a run's state is on its WebSocket, which is not
+    documented. R10 therefore holds for CloudCLI as list and launch, with every
+    session's status `unknown`, and stop, status and approve unreported. Not run
+    against a live CloudCLI.
   - Whether Tailwind builds into a shadow root as DEC-0011 requires. Its
     `rem` sizes follow the host's root font size, and Tailwind 4's `@property`
     rules are reported not to apply inside a shadow root. A spike that mounts a
@@ -273,11 +277,8 @@ body: |
     over TLS or a tunnel the user provides, because plain HTTP sends the token
     in the clear. Which of those the project documents and supports is not
     settled.
-  - Whether the native adapter's source is hook events, transcript files, or
-    only the service's own request log, and which of these tells waiting from
-    idle.
-  - Whether the editor saves through a new REST write route or through the
-    `complete`/`set-status` path extended. No route today writes arbitrary
-    document text.
+  - The native adapter has no source. The retrieval log's records name no
+    session, so it lists none and reports no status (DES-0057 D9). Hook events
+    or transcript files would be needed, and neither is read.
   - Authentication for a UI on a listener that binds 127.0.0.1 by default and
     that SECURITY.md already notes serves every local user on a shared machine.

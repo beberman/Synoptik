@@ -282,22 +282,29 @@ body: |
       capability the adapter reports, and a method an adapter lacks rejects with
       `Unsupported`.
 
-  D9  The native adapter implements `capabilities`, `list` and `status`. It reads
-      the retrieval log (REQ-0036), which an operator switches on and which is
-      off by default, through a new read operation `context-log` that answers
-      recent records. When the log is off the adapter reports no capabilities
-      and says why. Whether a record carries enough to name a session, or only
-      a query, is not established; if it does not, `list` answers recent
-      queries and `capabilities` says so, and no status is invented. Everything
-      is `unknown` rather than guessed. `context-log` is on the proxy's allow
-      list.
+  D9  The native adapter reports no capability. It was to read the retrieval log
+      (REQ-0036) through a `context-log` operation. A record holds the task, the
+      seeds and what came back for one `context` call, and nothing in it names
+      the session that made the call, so no session can be listed and no status
+      can be told from it. The adapter says so in its notes and invents nothing.
+      `context-log` is not built, and PLAN-0062 S5 no longer lists it.
 
   D10 The CloudCLI adapter runs in the Node server and calls CloudCLI's REST API at
-      an address and with a credential the server's configuration holds. The
-      browser sees neither. Its capabilities are whatever the API offers once
-      someone has read it; until then it claims none. Inside the CloudCLI host
-      the plugin does not register this adapter: the host's own session views
-      are the agent surface.
+      an address and with credentials the server's configuration holds
+      (`SYNOPTIK_CLOUDCLI_URL`, `_TOKEN`, `_API_KEY`). The browser sees none of
+      them. CloudCLI's source (spike S3, read 2026-10-17) offers two routes that
+      serve this. `GET /api/projects` with a JWT lists each project's sessions
+      with id, provider, summary, last activity and message count, which gives
+      `list`. `POST /api/agent` with an API key made in CloudCLI starts a run
+      from a project path and a message, which gives `launch`, and with
+      `stream: false` it answers when the run ends. The server therefore answers
+      a launch with 202 at once and keeps the outcome in a list of the last 20
+      launches. There is no abort route and no running-state route: a run's
+      state is on CloudCLI's WebSocket, whose messages are not documented. So
+      the adapter reports `list` and `launch` only, and every session it lists
+      has status `unknown`. It has not been run against a live CloudCLI. Inside
+      the CloudCLI host the plugin does not register this adapter: the host's own
+      session views are the agent surface.
 
   D11 Launch and stop are writes. The Node server offers them only when the
       service grants :write and the adapter reports the capability, as the MCP

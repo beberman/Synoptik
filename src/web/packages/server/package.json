@@ -10,5 +10,8 @@
   },
   "bin": {
     "synoptik-ui": "dist/cli.js"
+  },
+  "dependencies": {
+    "@synoptik/agents": "*"
   }
 }

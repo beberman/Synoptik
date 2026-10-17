@@ -1,3 +1,4 @@
+import { Unsupported, type AgentController } from "@synoptik/agents";
 import { bearerMatches, isLoopback } from "./auth.js";
 import { isAllowed, isRead, isWrite } from "./allow.js";
 import { exists, listFolders } from "./folders.js";
@@ -10,6 +11,8 @@ export interface HandlerConfig {
   token?: string;
   stores: Stores;
   fetch?: typeof fetch;
+  /** The agent tools to offer. Each is asked what it can do, and only that is offered. */
+  adapters?: AgentController[];
   /** Status changes for `/api/events`: call the listener with a JSON-able event; returns an unsubscribe. */
   subscribe?: (listener: (event: unknown) => void) => () => void;
 }
@@ -148,6 +151,51 @@ export function createHandler(config: HandlerConfig): (request: Request) => Prom
     return json(200, { saved: true });
   }
 
+  // What a launch did, newest first. A launch to a tool that answers when the run
+  // ends would hold a request open for hours, so the route replies at once and
+  // the outcome is recorded here for the panel to show.
+  type Launch = { adapter: string; repository: string; task: string; state: "running" | "finished" | "failed"; error?: string; at: string };
+  const launches: Launch[] = [];
+
+  async function agents(request: Request, route: string): Promise<Response> {
+    const adapters = config.adapters ?? [];
+    const [, id, action] = route.split("/");
+    if (!id) {
+      return json(200, {
+        adapters: await Promise.all(adapters.map(async (a) => ({ id: a.id, name: a.name, capabilities: await a.capabilities() }))),
+        launches,
+      });
+    }
+    const adapter = adapters.find((a) => a.id === id);
+    if (!adapter) return refuse(404, "NO-SUCH-ADAPTER", `No agent adapter named ${id}.`);
+    try {
+      if (action === "sessions") return json(200, { sessions: await adapter.list() });
+      if (request.method !== "POST") return refuse(405, "METHOD-NOT-ALLOWED", "Use POST.");
+      const body = (await request.json().catch(() => ({}))) as Record<string, string>;
+      const capabilities = await adapter.capabilities();
+      if (action === "launch") {
+        if (!capabilities.supported.includes("launch")) throw new Unsupported(adapter.name, "launch", capabilities.notes.launch);
+        if (!body.repository || !body.task) return refuse(400, "MALFORMED-REQUEST", "A launch needs a repository and a task.");
+        const record: Launch = { adapter: adapter.id, repository: body.repository, task: body.task, state: "running", at: new Date().toISOString() };
+        launches.unshift(record);
+        launches.length = Math.min(launches.length, 20);
+        adapter.launch({ repository: body.repository, task: body.task, provider: body.provider })
+          .then(() => { record.state = "finished"; })
+          .catch((e: Error) => { record.state = "failed"; record.error = e.message; });
+        return json(202, { accepted: true });
+      }
+      if (action === "stop") {
+        if (!capabilities.supported.includes("stop")) throw new Unsupported(adapter.name, "stop", capabilities.notes.stop);
+        await adapter.stop(String(body.session ?? ""));
+        return json(200, { stopped: true });
+      }
+      return refuse(404, "NOT-FOUND", `No agent route ${route}.`);
+    } catch (error: any) {
+      if (error instanceof Unsupported) return refuse(501, "UNSUPPORTED", error.message);
+      return refuse(502, "ADAPTER-FAILED", String(error?.message ?? error));
+    }
+  }
+
   function events(): Response {
     let unsubscribe = () => {};
     let timer: ReturnType<typeof setInterval>;
@@ -194,6 +242,7 @@ export function createHandler(config: HandlerConfig): (request: Request) => Prom
       if (route === "workspace/forget") return await forget(request);
       if (route === "ui-state") return await uiState(request);
       if (route === "events") return events();
+      if (route === "agents" || route.startsWith("agents/")) return await agents(request, route);
       return refuse(404, "NOT-FOUND", `No route /api/${route}.`);
     } catch (error: any) {
       const unreachable = error?.cause?.code === "ECONNREFUSED" || error?.name === "TypeError";
