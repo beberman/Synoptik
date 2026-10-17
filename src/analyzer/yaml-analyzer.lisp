@@ -445,6 +445,9 @@ is the one whose name two genres share."
         :priority (as-keyword (yaml-value table :priority)
                               '(:p1 :p2 :p3 :p4 :p5))
         :affects (as-list-of-strings (yaml-value table :affects))
+        ;; REQ-0080. The explorer filters on both and the index held neither.
+        :tags (as-list-of-strings (yaml-value table :tags))
+        :date (as-string (yaml-value table :date))
         :status (as-keyword (yaml-value table :status)
                             ;; :IMPLEMENTED and :PARTIAL complete CON-0004's
                             ;; vocabulary. Without them AS-KEYWORD returned NIL

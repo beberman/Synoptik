@@ -788,6 +788,7 @@ or indexed. Pass contents to check a draft that is not on disk."
         :title (getp entity :title)
         :status (getp entity :status)
         :priority (getp entity :priority)
+        :severity (getp entity :severity)
         :date (getp entity :date)
         :tags (getp entity :tags)
         :refines (getp entity :refines)
