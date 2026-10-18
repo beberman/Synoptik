@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, FileText, Filter, GitBranch, LayoutGrid, List, Moon, Network, Plus, Sun } from "lucide-react";
 import type { Client } from "@synoptik/client";
 import Sidebar, { EMPTY } from "./components/Sidebar";
@@ -16,17 +16,21 @@ import type { Doc, Filters } from "./types";
 const MAP_LIMIT = 90;
 type Panel = "agents" | "workspace" | null;
 
-export default function App({ client }: { client: Client }) {
+/**
+ * HISTORY ties the browser's back and forward buttons to the view. Off by
+ * default: inside a host page (the CloudCLI plugin) the host owns the history.
+ */
+export default function App({ client, history = false }: { client: Client; history?: boolean }) {
   const { ops, docs, repos, error, loaded, damaged, reload } = useWorkspaceData(client);
   const [saved, setSaved] = useState<UiState | null>(null);
   useEffect(() => { void loadUiState(client).then(setSaved); }, [client]);
   if (!saved || !loaded) return <div className="p-6 text-sm text-mute">Loading…</div>;
-  return <Shell client={client} ops={ops} docs={docs} repos={repos} error={error} damaged={damaged} reload={reload} saved={saved} />;
+  return <Shell client={client} ops={ops} docs={docs} repos={repos} error={error} damaged={damaged} reload={reload} saved={saved} history={history} />;
 }
 
-function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
+function Shell({ client, ops, docs, repos, error, damaged, reload, saved, history }: {
   client: Client; ops: ReturnType<typeof useWorkspaceData>["ops"]; docs: Doc[]; repos: ReturnType<typeof useWorkspaceData>["repos"];
-  error: string | null; damaged: string | null; reload: () => Promise<void>; saved: UiState;
+  error: string | null; damaged: string | null; reload: () => Promise<void>; saved: UiState; history: boolean;
 }) {
   const [filters, setFilters] = useState<Filters>(saved.filters ?? { ...EMPTY, types: ["REQ"], widen: 1 });
   const [selected, setSelected] = useState<string | null>(saved.selected ?? null);
@@ -38,6 +42,39 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
   const [dark, setDark] = useState(() => saved.dark ?? window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [wide, setWide] = useState(saved.wide ?? false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // What the back and forward buttons move between: the document open, the side
+  // panel, map or list, and the filters. The first entry is the page itself, so
+  // back past it leaves the interface.
+  const nav = { selected, panel, view, filters };
+  const navKey = JSON.stringify(nav);
+  const known = useRef(navKey);
+  useEffect(() => {
+    if (!history) return;
+    window.history.replaceState({ synoptik: nav }, "");
+    const back = (e: PopStateEvent) => {
+      const s = e.state?.synoptik as typeof nav | undefined;
+      if (!s) return;
+      known.current = JSON.stringify(s);
+      setSelected(s.selected); setPanel(s.panel); setView(s.view); setFilters(s.filters);
+    };
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history]);
+  useEffect(() => {
+    if (!history || navKey === known.current) return;
+    const before = JSON.parse(known.current) as typeof nav;
+    known.current = navKey;
+    // Typing in the search box changes only the text: one entry for the whole
+    // search, not one for every letter.
+    const typing = JSON.stringify({ ...before, filters: { ...before.filters, text: "" } }) === JSON.stringify({ ...nav, filters: { ...nav.filters, text: "" } });
+    if (typing) window.history.replaceState({ synoptik: nav }, "");
+    else window.history.pushState({ synoptik: nav }, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navKey]);
+
+  const home = () => { setSelected(null); setPanel(null); setShowNew(false); setShowFilters(false); };
 
   useEffect(() => { document.documentElement.classList.toggle("dark", dark); }, [dark]);
   useEffect(() => { if (!message) return; const t = setTimeout(() => setMessage(null), 3500); return () => clearTimeout(t); }, [message]);
@@ -79,8 +116,10 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
     <WsContext.Provider value={ws}>
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-1.5 border-b border-line bg-panel px-2 py-2 sm:gap-2 sm:px-3">
-        <FileText size={20} className="text-accent" />
-        <span className="font-semibold">Synoptik</span>
+        <button className="flex min-h-[44px] items-center gap-2 rounded-lg pr-2 hover:bg-line/40 md:min-h-0" onClick={home} aria-label="Synoptik home" title="Back to the home view">
+          <FileText size={20} className="text-accent" />
+          <span className="font-semibold">Synoptik</span>
+        </button>
         <span className="flex-1" />
         <button className="btn md:hidden" onClick={() => setShowFilters(true)} aria-label="Filters"><Filter size={16} /></button>
         <button className="btn btn-primary" onClick={() => setShowNew(true)}><Plus size={16} /><span className="hidden sm:inline">New</span></button>

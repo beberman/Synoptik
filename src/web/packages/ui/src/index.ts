@@ -8,6 +8,6 @@ export { App };
 /** Render the interface into CONTAINER, talking to the service through CLIENT. */
 export function mountStandalone(container: HTMLElement, client: Client): Root {
   const root = createRoot(container);
-  root.render(createElement(App, { client }));
+  root.render(createElement(App, { client, history: true }));
   return root;
 }
