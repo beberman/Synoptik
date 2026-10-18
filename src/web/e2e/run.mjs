@@ -65,8 +65,12 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  const reads = [];
+  page.on("request", (r) => { if (/read-document/.test(r.url())) reads.push(Date.now()); });
+  const stream = page.waitForRequest((r) => /\/api\/events/.test(r.url()), { timeout: 20000 }).then(() => true, () => false);
   await page.goto(`http://127.0.0.1:${port}/`);
   await page.waitForSelector("button[aria-label=Workspace]", { timeout: 20000 });
+  check("the page opens the event stream", await stream);
 
   await page.click("button[aria-label=Workspace]");
   await page.click("text=Add folder");
@@ -96,8 +100,13 @@ try {
 
   // The file changes underneath the open, unedited document (an agent, a terminal).
   const current = readFileSync(file, "utf8");
+  const readsBefore = reads.length;
+  const wrote = Date.now();
   writeFileSync(file, current.replace("priority: p1", "priority: p3"));
   await page.waitForSelector("text=was changed on disk, outside this editor", { timeout: 15000 });
+  const delay = Date.now() - wrote;
+  const polled = reads.slice(readsBefore).length;
+  check("the change arrives by the stream, within the monitor's two seconds and a margin", delay < 4500 && polled <= 2, `${delay} ms, ${polled} reads`);
   check("a change made outside is picked up without a reload", (await page.locator("text=p3").count()) >= 0);
   await page.click('button:has-text("Show changes")');
   await page.waitForSelector("text=What changed on disk");
@@ -115,6 +124,7 @@ try {
   await page.click('button:has-text("Ask an agent to fix")');
   const task = await page.locator("textarea[aria-label=Task]").inputValue();
   check("the agent task names the reference and what the index found", task.includes("function:src/old.js:movedThing") && task.includes("function:src/new.js:movedThing") && task.includes("check-document"));
+  await page.waitForSelector("text=No agent tool that can start a session", { timeout: 10000 }).catch(() => {});
   check("with no agent tool that can start a session, sending is refused in words", (await page.locator("text=No agent tool that can start a session").count()) > 0 && await page.locator('button:has-text("Send")').isDisabled());
   await page.click('div.fixed button:has-text("Cancel")');
   await page.click('button:has-text("Use src/new.js")');

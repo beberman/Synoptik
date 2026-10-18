@@ -203,7 +203,9 @@ body: |
       may name the documents it refines, chosen from the explorer's list.
 
   R18 Changes made outside the editor. A document open in the editor is read
-      again every few seconds while the page is in view. When the file changed
+      again when the service reports a new reading of it, pushed to the browser
+      and not asked for, and every few seconds while the page is in view if the
+      push is not connected. When the file changed
       and the editor holds no unsaved edit, the new text replaces the old, a
       notice says the file was changed outside the editor, and the person can
       see the difference and go back to the text from before. When the editor

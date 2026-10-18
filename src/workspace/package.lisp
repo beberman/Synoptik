@@ -181,6 +181,9 @@
    #:read-document-text
    #:write-document-text
    #:reference-suggestions
+   #:document-changes-after
+   #:note-document-change
+   #:*change-wait-limit*
    #:committed-document-text
    #:create-document
    #:text-version-token

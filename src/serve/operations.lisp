@@ -845,6 +845,21 @@ entities the index holds under the name it ends in: where something that moved \
 now is. Pass text to ask about a draft that is not saved."
   (text-result (reference-suggestions (require-repository repository) document :text text)))
 
+(define-operation :changes :read ((after) (epoch) (wait))
+    "Which documents the index has read since the sequence number AFTER, waiting \
+up to WAIT seconds (at most 30) for one. Answers :sequence to ask after next and \
+:epoch to send back with it; :reset true means read everything again. With no \
+AFTER it answers the present sequence at once. A long poll: it holds a worker \
+thread while it waits, and reads no repository."
+  (let ((report (document-changes-after
+                 (and after (request-integer after "after"))
+                 (and epoch (request-integer epoch "epoch"))
+                 :wait (if wait (request-integer wait "wait") 0))))
+    (list :epoch (getf report :epoch)
+          :sequence (getf report :sequence)
+          :reset (or (getf report :reset) *json-false*)
+          :changes (getf report :changes))))
+
 (define-operation :committed-document :read (repository document)
     "The text git holds for a document at HEAD, with a version to write it back \
 with: what an edit is undone to when no earlier text is at hand."

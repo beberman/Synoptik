@@ -33,3 +33,27 @@ describe("the fetch client", () => {
     expect(await many.documents()).toHaveLength(2);
   });
 });
+
+describe("subscribe", () => {
+  const stream = (chunks: string[]) => new ReadableStream<Uint8Array>({
+    start(controller) { const e = new TextEncoder(); for (const c of chunks) controller.enqueue(e.encode(c)); controller.close(); },
+  });
+
+  it("reads events split across chunks, sends the token, and reports the connection", async () => {
+    const seen: unknown[] = [];
+    const requests: { url: string; authorization?: string }[] = [];
+    let calls = 0;
+    const fake = (async (url: string, init: RequestInit) => {
+      requests.push({ url, authorization: (init.headers as Record<string, string>).authorization });
+      if (++calls === 1) return new Response(stream([": connected\n\ndata: {\"type\":\"docu", "ment\",\"address\":\"a.yaml\"}\n\ndata: {\"type\":\"reset\"}\n\n"]), { status: 200 });
+      return new Response(new ReadableStream({ start() { /* stays open */ } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const client = fetchClient({ baseUrl: "http://x", token: "t0k", fetch: fake });
+    const stop = client.subscribe!((e) => seen.push(e));
+    await new Promise((r) => setTimeout(r, 1500));
+    stop();
+    expect(seen.slice(0, 4)).toEqual([{ type: "open" }, { type: "document", address: "a.yaml" }, { type: "reset" }, { type: "closed" }]);
+    expect(requests[0]).toEqual({ url: "http://x/api/events", authorization: "Bearer t0k" });
+    expect(calls).toBe(2);
+  });
+});

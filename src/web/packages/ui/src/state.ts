@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { operations, type Client } from "@synoptik/client";
+import { operations, type Client, type ServerEvent } from "@synoptik/client";
 import { toDoc } from "./data";
 import type { Doc, Filters, Repo } from "./types";
 
@@ -84,4 +84,24 @@ export function useUiState(client: Client, value: UiState, enabled: boolean) {
 
 export async function loadUiState(client: Client): Promise<UiState> {
   try { return ((await client("GET", "/api/ui-state")) ?? {}) as UiState; } catch { return {}; }
+}
+
+/**
+ * Call ON for each event the server pushes. True while the connection is up, so a
+ * caller that polls as a fallback can stop while it is. A client that cannot
+ * stream is never live.
+ */
+export function useServerEvents(client: Client, on: (event: ServerEvent) => void): boolean {
+  const latest = useRef(on);
+  latest.current = on;
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!client.subscribe) return;
+    return client.subscribe((event) => {
+      if (event.type === "open") setLive(true);
+      else if (event.type === "closed") setLive(false);
+      latest.current(event);
+    });
+  }, [client]);
+  return live;
 }

@@ -210,3 +210,56 @@ affects: [\"function:src/old-place.lisp:moved-thing\"]~%body: |~%  R1  the ask.~
     (run-git root "init" "-q")
     (with-indexed-tree (repository root)
       (is (getf (committed-document-text repository "REQ-0001") :problems)))))
+
+;;; The log of what the index has read (REQ-0080 R18)
+
+(defun changes-now ()
+  "The present state of the log, as a caller with no number learns it."
+  (synoptik-workspace:document-changes-after nil nil))
+
+(test a-caller-with-no-number-is-told-to-start-from-now
+  (let ((report (changes-now)))
+    (is-true (getf report :reset))
+    (is (null (getf report :changes)) "it is not handed the history")
+    (is (integerp (getf report :sequence)))))
+
+(test a-save-is-in-the-log-after-the-number-taken-before-it
+  (with-document-trees (root)
+    (write-document root "docs/requirements/REQ-0001.yaml" (requirement-document "REQ-0001"))
+    (with-indexed-tree (repository root)
+      (let* ((start (changes-now))
+             (read (read-document-text repository "REQ-0001"))
+             (edited (concatenate 'string (getf read :text) "tags: [logged]" (string #\Newline))))
+        (write-document-text repository "REQ-0001" edited (getf read :version))
+        (let ((report (synoptik-workspace:document-changes-after (getf start :sequence) (getf start :epoch))))
+          (is-false (getf report :reset))
+          (is (member "docs/requirements/REQ-0001.yaml" (getf report :changes)
+                      :key (lambda (c) (getf c :address)) :test #'string=))
+          (is (every (lambda (c) (> (getf c :sequence) (getf start :sequence))) (getf report :changes))))))))
+
+(test a-wait-ends-when-a-change-arrives-and-not-at-the-limit
+  ;; The point of the long poll: the caller is woken, not left to time out.
+  (let* ((start (changes-now))
+         (thread (bt:make-thread (lambda ()
+                                   (sleep 0.3)
+                                   (synoptik-workspace:note-document-change "r" "docs/x.yaml" :changed))))
+         (began (get-internal-real-time))
+         (report (synoptik-workspace:document-changes-after (getf start :sequence) (getf start :epoch) :wait 10))
+         (seconds (/ (- (get-internal-real-time) began) internal-time-units-per-second 1.0)))
+    (bt:join-thread thread)
+    (is (= 1 (length (getf report :changes))))
+    (is (< seconds 5) "it waited ~,1f seconds for a change that came after 0.3" seconds)))
+
+(test a-wait-with-nothing-to-report-answers-empty-and-not-reset
+  (let* ((start (changes-now))
+         (report (synoptik-workspace:document-changes-after (getf start :sequence) (getf start :epoch) :wait 0.2)))
+    (is (null (getf report :changes)))
+    (is-false (getf report :reset))
+    (is (= (getf start :sequence) (getf report :sequence)))))
+
+(test a-number-from-another-run-or-from-the-future-says-start-again
+  (let ((start (changes-now)))
+    (is-true (getf (synoptik-workspace:document-changes-after (getf start :sequence) (1+ (getf start :epoch))) :reset)
+             "an epoch from another run")
+    (is-true (getf (synoptik-workspace:document-changes-after (+ 5 (getf start :sequence)) (getf start :epoch)) :reset)
+             "a number the log has not reached")))

@@ -40,6 +40,8 @@
   :components
   (
    (:file "package")
+   ;; Before "workspace": INDEX-DOCUMENT writes to it.
+   (:file "changes")
    (:file "workspace")
    ;; After "workspace": the transition takes WITH-REPOSITORY-LOCK and calls
    ;; REINDEX-REPOSITORY, both defined there, and :SERIAL T is what makes the

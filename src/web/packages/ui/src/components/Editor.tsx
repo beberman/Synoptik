@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Code2, History, Redo2, Replace, Save, Undo2, X, AlertTriangle, Bot } from "lucide-react";
 import { ConflictError, type Client, type CheckResult, type Suggestion, type operations } from "@synoptik/client";
 import { indexByKey, refKey } from "../data";
+import { useServerEvents } from "../state";
 import { parseErrors, readFields, replaceItem, setBlock, setField, setList } from "../yamlEdit";
 import type { Doc } from "../types";
 import Auto from "./Auto";
@@ -73,33 +74,41 @@ export default function Editor({
   const dirty = loaded !== null && draft !== loaded.text;
 
   // A change made to the file while it is open arrives here: an agent, an editor,
-  // a terminal. Read again every few seconds while the page is in view.
+  // a terminal. The server says when the service has read a new text of it; the
+  // text is read again then. Without a connection to the server it is read every
+  // few seconds while the page is in view.
   const latest = useRef({ loaded, dirty, saving, conflict });
   latest.current = { loaded, dirty, saving, conflict };
+  const pull = useRef<() => Promise<void>>(async () => {});
+  pull.current = async () => {
+    const now = latest.current;
+    if (!now.loaded || now.saving) return;
+    try {
+      const read = await ops.readDocument(doc.repo, doc.id);
+      const cur = latest.current;
+      if (!cur.loaded || cur.saving || read.version === cur.loaded.version) return;
+      if (cur.dirty) {
+        // Unsaved edits are never replaced: the person chooses, as for a refused save.
+        if (cur.conflict?.version !== read.version) setConflict({ text: read.text, version: read.version });
+        return;
+      }
+      setBefore(cur.loaded);
+      setLoaded({ text: read.text, version: read.version });
+      setDraft(read.text); setPast([]); setFuture([]);
+      toast(`${doc.id} was changed on disk`);
+      if (doc.path) setCheck(await ops.checkDocument(doc.repo, doc.path).catch(() => null));
+      void reload();
+    } catch { /* the service may be restarting; the next event or read tries again */ }
+  };
+  const live = useServerEvents(client, (event) => {
+    if (event.type === "open" || event.type === "reset") void pull.current();
+    else if (event.type === "document" && event.repository === doc.repo && event.address === doc.path) void pull.current();
+  });
   useEffect(() => {
-    const timer = setInterval(async () => {
-      const now = latest.current;
-      if (!now.loaded || now.saving || document.hidden) return;
-      try {
-        const read = await ops.readDocument(doc.repo, doc.id);
-        const cur = latest.current;
-        if (!cur.loaded || cur.saving || read.version === cur.loaded.version) return;
-        if (cur.dirty) {
-          // Unsaved edits are never replaced: the person chooses, as for a refused save.
-          if (cur.conflict?.version !== read.version) setConflict({ text: read.text, version: read.version });
-          return;
-        }
-        setBefore(cur.loaded);
-        setLoaded({ text: read.text, version: read.version });
-        setDraft(read.text); setPast([]); setFuture([]);
-        toast(`${doc.id} was changed on disk`);
-        if (doc.path) setCheck(await ops.checkDocument(doc.repo, doc.path).catch(() => null));
-        void reload();
-      } catch { /* the service may be restarting; the next read tries again */ }
-    }, 4000);
+    if (live) return;
+    const timer = setInterval(() => { if (!document.hidden) void pull.current(); }, 4000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ops, doc.repo, doc.id, doc.path]);
+  }, [live]);
 
   // Where a name that resolves to nothing is defined now, asked of the index.
   useEffect(() => {

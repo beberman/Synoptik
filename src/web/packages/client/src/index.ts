@@ -3,7 +3,23 @@
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Method = "GET" | "POST" | "PUT";
-export type Client = (method: Method, path: string, body?: Json) => Promise<Json>;
+/** What `/api/events` sends, plus `open` and `closed` for the connection itself. */
+export interface ServerEvent {
+  type: "document" | "reset" | "open" | "closed";
+  repository?: string;
+  address?: string;
+  kind?: string;
+  sequence?: number;
+}
+
+export type Client = ((method: Method, path: string, body?: Json) => Promise<Json>) & {
+  /**
+   * Call LISTENER for each event the server pushes, reconnecting when the
+   * connection drops. Absent on a client that cannot stream, which the
+   * interface answers by asking again on a timer.
+   */
+  subscribe?: (listener: (event: ServerEvent) => void) => () => void;
+};
 
 /** The service refused the request. `body` is the service's `{name, message}`. */
 export class ApiError extends Error {
@@ -33,7 +49,8 @@ export interface FetchClientOptions {
 
 export function fetchClient(options: FetchClientOptions = {}): Client {
   const doFetch = options.fetch ?? fetch;
-  return async (method, path, body) => {
+  const authorize = (): Record<string, string> => (options.token ? { authorization: `Bearer ${options.token}` } : {});
+  const client: Client = async (method, path, body) => {
     const headers: Record<string, string> = {};
     if (options.token) headers.authorization = `Bearer ${options.token}`;
     if (body !== undefined) headers["content-type"] = "application/json";
@@ -51,6 +68,47 @@ export function fetchClient(options: FetchClientOptions = {}): Client {
     const failure = (parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { message: String(parsed) }) as ApiError["body"];
     throw response.status === 409 ? new ConflictError(failure) : new ApiError(response.status, failure);
   };
+
+  // `fetch` and not EventSource, because EventSource cannot send the bearer token.
+  client.subscribe = (listener) => {
+    const stop = new AbortController();
+    let wait = 1000;
+    void (async () => {
+      while (!stop.signal.aborted) {
+        try {
+          const response = await doFetch(`${options.baseUrl ?? ""}/api/events`, { headers: authorize(), signal: stop.signal });
+          if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+          wait = 1000;
+          listener({ type: "open" });
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+              const block = buffer.slice(0, end);
+              buffer = buffer.slice(end + 2);
+              for (const line of block.split("\n")) {
+                if (!line.startsWith("data: ")) continue;
+                try { listener(JSON.parse(line.slice(6)) as ServerEvent); } catch { /* a line that is not an event */ }
+              }
+            }
+          }
+        } catch { /* dropped or refused: reconnect below */ }
+        if (stop.signal.aborted) return;
+        listener({ type: "closed" });
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, wait);
+          stop.signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+        });
+        wait = Math.min(wait * 2, 15000);
+      }
+    })();
+    return () => stop.abort();
+  };
+  return client;
 }
 
 // ---- The operations the UI uses, typed against what `/v1/` answers. -------------

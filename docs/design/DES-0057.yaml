@@ -228,14 +228,14 @@ body: |
 
   D18 Working with an agent on a document. Three additions, none of which makes
       the editor a shared one. The agent edits the file; the editor follows it.
-      (1) The editor reads the open document every four seconds while the page
-      is visible and compares the version token it holds. A change with no
+      (1) The editor reads the open document again when the server says the
+      service has read a new text of it (D19), or every four seconds while the
+      page is visible when it has no connection to the server, and compares
+      the version token it holds. A change with no
       unsaved edit is taken, the text from before is kept in memory, and a
       notice offers a line diff and a way back, which writes that text with the
       version just read, so a third change in between is refused. A change with
-      unsaved edits opens the refused-save dialog. Polling was chosen over
-      `/api/events` because the events carry status changes and not documents,
-      and a read costs 0.03 s. (2) `suggest-fixes` (:read, REST only) takes a
+      unsaved edits opens the refused-save dialog. (2) `suggest-fixes` (:read, REST only) takes a
       repository and a document and answers, for each declared reference that
       resolves to nothing and is not a document id, the code entities the index
       holds under the last part of its name: `{replacement, file, type}`,
@@ -246,6 +246,26 @@ body: |
       layout of the rest. The agent task is built in the editor from the
       references and candidates and sent through the existing launch route after
       the person has read it; the Node server reads no file and writes none.
+
+  D19 Changes reach the browser by push. The service keeps a log of the last 500
+      documents its index has read, written by INDEX-DOCUMENT and
+      RETRACT-DOCUMENT, which the monitor's poll, a write made through the
+      service and a rebuild all go through (`src/workspace/changes.lisp`). The
+      `changes` operation (:read, REST only, reads no repository) answers what
+      is newer than `after`, waiting up to `wait` seconds (at most 30) for
+      something to be. It holds one worker thread while it waits, and answers
+      `reset` when the caller has no number, a number from another run
+      (`epoch` is fixed per process) or one the log no longer reaches. The Node
+      server runs one such long poll for everyone (`ChangeFeed`) while any
+      browser listens and sends each change on `/api/events`. The browser
+      reads that stream with `fetch` and not `EventSource`, because EventSource
+      cannot send the bearer token, and reconnects with a growing delay. The
+      editor reads the open document when an event names its file, and the
+      cards reload after a pause of 1.5 s with no further event. A websocket
+      was not used: nothing travels from the browser on this channel, and SSE
+      reconnects by itself. The delay is the monitor's two-second directory
+      check, which is not replaced by file notifications: 1.8 s measured from
+      writing a file to the editor's notice, with one read of the document.
 
   THE EDITOR
 

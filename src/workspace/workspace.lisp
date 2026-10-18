@@ -1035,6 +1035,7 @@ these bytes, so the store will not report them again."
            (setf (gethash address (repository-documents repository))
                  (cons (docstore-record-ref record) (docstore-record-version record)))
            (remhash address (repository-document-failures repository))
+           (note-document-change (repository-name repository) address :changed)
            t)
           (t
            (setf (gethash address (repository-document-failures repository))
@@ -1052,7 +1053,8 @@ these bytes, so the store will not report them again."
   (apply-transaction (repository-graph repository)
                      (list (retract-file address (repository-name repository))))
   (remhash address (repository-documents repository))
-  (remhash address (repository-document-failures repository)))
+  (remhash address (repository-document-failures repository))
+  (note-document-change (repository-name repository) address :removed))
 
 (defun index-all-documents (repository &key quiet)
   "Index every document the store holds. Returns how many were indexed.

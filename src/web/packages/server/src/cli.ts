@@ -16,6 +16,7 @@ import { createHandler, restoreWorkspace } from "./handler.js";
 import { startListener } from "./listener.js";
 import { CloudCliAdapter, NativeAdapter, type AgentController } from "@synoptik/agents";
 import { Stores } from "./store.js";
+import { ChangeFeed } from "./changes.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const serviceUrl = process.env.SYNOPTIK_URL ?? "http://127.0.0.1:4780";
@@ -25,6 +26,7 @@ const token = process.env.SYNOPTIK_UI_TOKEN || undefined;
 const staticDir = resolve(process.env.SYNOPTIK_UI_STATIC ?? resolve(here, "../../../apps/standalone/dist"));
 
 const stores = new Stores();
+const feed = new ChangeFeed({ serviceUrl });
 const adapters: AgentController[] = [new NativeAdapter()];
 if (process.env.SYNOPTIK_CLOUDCLI_URL) {
   adapters.push(new CloudCliAdapter({
@@ -34,7 +36,7 @@ if (process.env.SYNOPTIK_CLOUDCLI_URL) {
   }));
 }
 try {
-  const server = await startListener({ host, port, token, staticDir, handler: createHandler({ serviceUrl, token, stores, adapters }) });
+  const server = await startListener({ host, port, token, staticDir, handler: createHandler({ serviceUrl, token, stores, adapters, subscribe: (listener) => feed.subscribe(listener) }) });
   console.log(`synoptik-ui listening on http://${host}:${port}/ for ${serviceUrl}${token ? " (token required)" : ""}`);
   for (const sig of ["SIGTERM", "SIGINT"] as const) process.on(sig, () => server.close(() => process.exit(0)));
 } catch (error: any) {

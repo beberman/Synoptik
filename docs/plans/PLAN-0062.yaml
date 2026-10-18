@@ -179,8 +179,10 @@ body: |
       scroll and controls of at least 44 px for every view, and the graph's list
       form. Repeat against the plugin build.
 
-  S16 Changes made outside the editor (R18). The editor polls the open document's
-      version, takes an outside change when nothing is unsaved, keeps the text
+  S16 Changes made outside the editor (R18). The service logs what it indexes and
+      `changes` long-polls it; the Node server streams that on `/api/events`; the
+      editor reads the open document when an event names it, or on a timer when
+      the stream is down, takes an outside change when nothing is unsaved, keeps the text
       from before, and shows a line diff with a way back; unsaved edits open the
       refused-save dialog. `committed-document` answers git's text for the
       other way back. Tests: `diff.test.ts`, the Lisp tests for the operation,

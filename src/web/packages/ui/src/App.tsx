@@ -10,7 +10,7 @@ import NewDoc from "./components/NewDoc";
 import Workspace from "./components/Workspace";
 import { WsContext } from "./context";
 import { distinct, key, matches, widen } from "./data";
-import { loadUiState, useUiState, useWorkspaceData, type UiState } from "./state";
+import { loadUiState, useServerEvents, useUiState, useWorkspaceData, type UiState } from "./state";
 import type { Doc, Filters } from "./types";
 
 const MAP_LIMIT = 90;
@@ -73,6 +73,17 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
     else window.history.pushState({ synoptik: nav }, "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navKey]);
+
+  // The cards and counts follow what the service has read. A burst of events (a
+  // restart indexes everything again) is one reload.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout>>();
+  const opened = useRef(false);
+  useServerEvents(client, (event) => {
+    if (event.type === "open") { if (!opened.current) { opened.current = true; return; } }
+    else if (event.type !== "document" && event.type !== "reset") return;
+    clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => { void reload(); }, 1500);
+  });
 
   const home = () => { setSelected(null); setPanel(null); setShowNew(false); setShowFilters(false); };
 

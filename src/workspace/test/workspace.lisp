@@ -714,7 +714,7 @@ the files whichever way it got there"))))
 ;;; The :CALL-SITE ceiling (DES-0014 R2)
 ;;; ------------------------------------------------------------------
 
-(defparameter *call-site-ceiling* 540
+(defparameter *call-site-ceiling* 560
   "The most :CALL-SITE entities this tree may hold before something is wrong.
 
 DES-0014 refused a node per call-name occurrence -- 4867 nodes against 1604
@@ -987,7 +987,13 @@ sites the ceiling test counts (:CALL-SITE entities not tagged :PYTHON) read
 516, because it also counts Python sites. Define-command, define-operation,
 js-test, domain-test and the 41 ambiguous occurrences did not move. It leaves
 8 sites. A Python function spelled like a name a Lisp script calls adds a site
-to that script (DES-0015); BUG-0073's first draft added four that way.")
+to that script (DES-0015); BUG-0073's first draft added four that way.
+
+MEASURED 2026-10-18 AT 541, CEILING 560. REQ-0080 R18 to R20 added the
+:suggest-fixes, :committed-document and :changes operations and the tests for
+them and for the change log. Each call in an operation body is a site by
+DES-0014, and 541 is 531 plus those bodies. Nothing began minting for a new
+reason. 560 is 541 plus the headroom the earlier figures kept.")
 
 (defparameter *python-call-site-ceiling* 128
   "The most :CALL-SITE entities Python files in this tree may hold.
