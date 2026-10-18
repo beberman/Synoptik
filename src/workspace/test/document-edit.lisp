@@ -93,3 +93,57 @@
           (is (search "req and bug" (first (getf made :problems))))))
       (is-false (document-at-p root "docs/design/DES-0001.yaml"))
       (is (getf (create-document repository "req" "") :problems) "an empty title"))))
+
+;;; A save and a walk (BUG-0084)
+
+(defun counting-walks (thunk)
+  "How many times WALK-TREE ran while THUNK did."
+  (let ((walks 0))
+    (sb-int:encapsulate 'synoptik-workspace::walk-tree 'count-walks
+                        (lambda (function &rest arguments)
+                          (incf walks)
+                          (apply function arguments)))
+    (unwind-protect (funcall thunk)
+      (sb-int:unencapsulate 'synoptik-workspace::walk-tree 'count-walks))
+    walks))
+
+(test a-save-indexes-the-document-it-wrote-without-walking-the-tree
+  ;; BUG-0084: the write polled the store, and a file store polls by walking
+  ;; every file under the root. On front-end that was 20 seconds a save.
+  (with-document-trees (root)
+    (write-document root "docs/requirements/REQ-0001.yaml" (requirement-document "REQ-0001"))
+    (with-indexed-tree (repository root)
+      (let* ((read (read-document-text repository "REQ-0001"))
+             (edited (concatenate 'string (getf read :text) "tags: [walkless]" (string #\Newline)))
+             (saved nil)
+             (walks (counting-walks
+                     (lambda ()
+                       (setf saved (write-document-text repository "REQ-0001" edited (getf read :version)))))))
+        (is-true (getf saved :changed))
+        (is (zerop walks) "the save walked the tree ~d time~:p" walks)
+        (is (member "walkless" (getp (synoptik-workspace::resolve-document repository "REQ-0001") :tags) :test #'equal)
+            "the index holds the text that was written")))))
+
+(test the-poll-after-a-save-finds-nothing-more-to-read
+  ;; The token has to take the written file's stamp, or the next poll reads and
+  ;; indexes the same text again. A memory store's token is a clock and not a
+  ;; table of stamps, so it reads the document once more, harmlessly: file only.
+  (with-document-tree (root)
+    (write-document root "docs/requirements/REQ-0001.yaml" (requirement-document "REQ-0001"))
+    (with-indexed-tree (repository root)
+      (let* ((read (read-document-text repository "REQ-0001"))
+             (edited (concatenate 'string (getf read :text) "tags: [once]" (string #\Newline))))
+        (write-document-text repository "REQ-0001" edited (getf read :version))
+        (is (zerop (synoptik-workspace::poll-documents repository :quiet t)))))))
+
+(test the-walk-does-not-enter-node-modules-or-a-dot-directory
+  ;; BUG-0084. node_modules is skipped by name at any depth (BUG-0085 is what that
+  ;; costs), and a dot-directory is skipped because nothing in one is a document.
+  (with-document-trees (root)
+    (dolist (path '("lib/z.md" "src/a.md" "node_modules/p/README.md"
+                    "web/node_modules/q/README.md" ".hidden/b.md" "web/.cache/c.md" "web/ok/d.md"))
+      (write-document root path "x"))
+    (let ((found (mapcar (lambda (path) (enough-namestring path (pathname root)))
+                         (synoptik-workspace::walk-tree root))))
+      (is (equal '("lib/z.md" "src/a.md" "web/ok/d.md")
+                 (sort (copy-list found) #'string<))))))

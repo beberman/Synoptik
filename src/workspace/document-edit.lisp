@@ -108,7 +108,7 @@ which is the unedited save of REQ-0080 R5."
               (t
                (handler-case
                    (let ((record (docstore-write store ref text :expected-version store-version)))
-                     (poll-documents repository :quiet t)
+                     (index-written-document repository record text :quiet t)
                      (list :address (docstore-record-address record) :changed t
                            :text text :version (text-version-token text)))
                  (docstore-conflict ()
@@ -180,7 +180,7 @@ two that are allowed."
                    (id (docstore-allocate-id store directory))
                    (text (creation-template id kind (string-trim " " title) refines))
                    (record (docstore-create store directory id text)))
-              (poll-documents repository :quiet t)
+              (index-written-document repository record text :quiet t)
               (list :repository (repository-name repository)
                     :doc-id id
                     :address (docstore-record-address record)

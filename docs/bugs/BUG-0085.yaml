@@ -1,0 +1,43 @@
+id: BUG-0085
+type: bug
+title: A tree whose dependencies are not under node_modules, or that commits it, is indexed differently
+status: open
+severity: minor
+date: 2026-10-18
+importance: Minor
+refines: [BUG-0084]
+affects: [walk-tree, tree-listing, repository-files]
+tags: [indexing, node-modules, git-ignore, known-limitation, bug-0084]
+summary: |
+  BUG-0084 stops the tree walk entering any directory named `node_modules`. A
+  repository that keeps source or documents in a directory with that name, and
+  one that renames its dependency directory, are no longer treated alike. This
+  is recorded as a known consequence and is not to be fixed.
+body: |
+  WHAT CHANGED
+
+  Before BUG-0084 every directory was walked and git decided afterwards what
+  to ignore (DES-0018, BUG-0024). A vendored dependency tree was kept out
+  because it was git-ignored, whatever it was called.
+
+  Now the walk skips a directory named `node_modules` before git is asked, and
+  a dot-directory likewise. Both were already excluded from indexing, so the
+  second changes nothing visible. The first does:
+
+  1. A repository that commits files under a directory called node_modules and
+     does not git-ignore it used to index them. It indexes none of them.
+
+  2. A repository that keeps its dependencies under another name, such as
+     `vendor/` or a renamed `node_modules`, and does not git-ignore it, is
+     walked in full, as before BUG-0084, and pays the walk.
+
+  3. A repository whose dependencies are git-ignored under a name other than
+     node_modules is walked in full for the same reason.
+
+  WHY IT IS LEFT
+
+  Honouring git-ignore during the walk needs a `git check-ignore` call per
+  directory or a parse of every .gitignore, and the walk is the part that has
+  to be cheap. Skipping one name covers the case that cost 20 seconds. The
+  list is *UNWALKED-DIRECTORIES* in src/workspace/workspace.lisp, and adding a
+  name to it is the whole change for another ecosystem.
