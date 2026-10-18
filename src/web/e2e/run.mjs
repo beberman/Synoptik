@@ -40,6 +40,8 @@ body: |
 
   R1  Changes appear for every user within a second.
 `);
+mkdirSync(join(repo, "src"), { recursive: true });
+writeFileSync(join(repo, "src/new.js"), "export function movedThing() { return 1; }\n");
 const git = (...a) => execFileSync("git", ["-c", "user.email=e@e", "-c", "user.name=e", ...a], { cwd: repo });
 git("init", "-q"); git("add", "-A"); git("commit", "-qm", "init");
 writeFileSync(join(home, "web.json"), JSON.stringify({ version: 1, roots: [roots], repositories: [] }));
@@ -91,6 +93,35 @@ try {
   const afterConflict = readFileSync(file, "utf8");
   check("a stale save is refused and the file keeps the other writer's text", afterConflict.includes("priority: p1") && !afterConflict.includes("Edited in the browser"));
   await page.click("text=Take theirs");
+
+  // The file changes underneath the open, unedited document (an agent, a terminal).
+  const current = readFileSync(file, "utf8");
+  writeFileSync(file, current.replace("priority: p1", "priority: p3"));
+  await page.waitForSelector("text=was changed on disk, outside this editor", { timeout: 15000 });
+  check("a change made outside is picked up without a reload", (await page.locator("text=p3").count()) >= 0);
+  await page.click('button:has-text("Show changes")');
+  await page.waitForSelector("text=What changed on disk");
+  check("the change is shown as a difference", (await page.locator("div.fixed >> text=priority: p3").count()) > 0 && (await page.locator("div.fixed >> text=priority: p1").count()) > 0);
+  await page.click('button:has-text("Go back to the older text")');
+  await page.waitForSelector("text=Went back to the older text", { timeout: 15000 });
+  check("going back writes the earlier text to the file", readFileSync(file, "utf8") === current);
+
+  // Code the document names has moved: the index offers where it is now.
+  const moved = readFileSync(file, "utf8");
+  writeFileSync(file, moved.replace("tags: [multi-user]", 'tags: [multi-user]\naffects: ["function:src/old.js:movedThing"]'));
+  await page.waitForSelector("text=was changed on disk, outside this editor", { timeout: 15000 });
+  await page.waitForSelector("text=Use src/new.js", { timeout: 15000 });
+  check("a reference to moved code is offered the file it is in now", true);
+  await page.click('button:has-text("Ask an agent to fix")');
+  const task = await page.locator("textarea[aria-label=Task]").inputValue();
+  check("the agent task names the reference and what the index found", task.includes("function:src/old.js:movedThing") && task.includes("function:src/new.js:movedThing") && task.includes("check-document"));
+  check("with no agent tool that can start a session, sending is refused in words", (await page.locator("text=No agent tool that can start a session").count()) > 0 && await page.locator('button:has-text("Send")').isDisabled());
+  await page.click('div.fixed button:has-text("Cancel")');
+  await page.click('button:has-text("Use src/new.js")');
+  await page.waitForSelector("text=Saved REQ-0001", { timeout: 15000 });
+  const fixed = readFileSync(file, "utf8");
+  check("the fix replaced only the one entry in the file", fixed === moved.replace("tags: [multi-user]", 'tags: [multi-user]\naffects: ["function:src/new.js:movedThing"]'));
+  check("the check now reports it resolved", (await page.locator("text=resolves to nothing").count()) === 1);
 
   await page.click('button:has-text("New")');
   await page.fill('input[placeholder^="Title"]', "Boards can be exported");

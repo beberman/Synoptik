@@ -1,20 +1,22 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Code2, Redo2, Replace, Save, Undo2, X, AlertTriangle } from "lucide-react";
-import { ConflictError, type CheckResult, type operations } from "@synoptik/client";
+import { Check, Code2, History, Redo2, Replace, Save, Undo2, X, AlertTriangle, Bot } from "lucide-react";
+import { ConflictError, type Client, type CheckResult, type Suggestion, type operations } from "@synoptik/client";
 import { indexByKey, refKey } from "../data";
-import { parseErrors, readFields, setBlock, setField, setList } from "../yamlEdit";
+import { parseErrors, readFields, replaceItem, setBlock, setField, setList } from "../yamlEdit";
 import type { Doc } from "../types";
 import Auto from "./Auto";
 import Outline from "./Outline";
 import Meta from "./Meta";
+import Changes from "./Changes";
+import AskAgent from "./AskAgent";
 
 type Ops = ReturnType<typeof operations>;
 type Loaded = { text: string; version: string };
 
 export default function Editor({
-  ops, doc, all, reload, toast, wide, metaSlot,
-}: { wide?: boolean; metaSlot?: HTMLElement | null; ops: Ops; doc: Doc; all: Doc[]; reload: () => Promise<void>; toast: (m: string) => void }) {
+  client, ops, doc, all, reload, toast, wide, metaSlot,
+}: { client: Client; wide?: boolean; metaSlot?: HTMLElement | null; ops: Ops; doc: Doc; all: Doc[]; reload: () => Promise<void>; toast: (m: string) => void }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [draft, setDraft] = useState("");
   const [past, setPast] = useState<string[]>([]);
@@ -25,6 +27,13 @@ export default function Editor({
   const [showFind, setShowFind] = useState(false);
   const [conflict, setConflict] = useState<Loaded | null>(null);
   const [checkOpen, setCheckOpen] = useState(false);
+  // The text as it was before the last change made outside this editor, which is
+  // what going back returns to; and what git holds, asked for only when wanted.
+  const [before, setBefore] = useState<Loaded | null>(null);
+  const [committed, setCommitted] = useState<Loaded | null>(null);
+  const [showChanges, setShowChanges] = useState<"outside" | "commit" | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [ask, setAsk] = useState<string | null>(null);
   // Width of the check_document column, kept per browser. Dragging the divider
   // or pressing the arrow keys on it changes it.
   const [side, setSide] = useState<number | null>(() => {
@@ -63,6 +72,43 @@ export default function Editor({
   const yamlErrors = useMemo(() => parseErrors(draft), [draft]);
   const dirty = loaded !== null && draft !== loaded.text;
 
+  // A change made to the file while it is open arrives here: an agent, an editor,
+  // a terminal. Read again every few seconds while the page is in view.
+  const latest = useRef({ loaded, dirty, saving, conflict });
+  latest.current = { loaded, dirty, saving, conflict };
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      const now = latest.current;
+      if (!now.loaded || now.saving || document.hidden) return;
+      try {
+        const read = await ops.readDocument(doc.repo, doc.id);
+        const cur = latest.current;
+        if (!cur.loaded || cur.saving || read.version === cur.loaded.version) return;
+        if (cur.dirty) {
+          // Unsaved edits are never replaced: the person chooses, as for a refused save.
+          if (cur.conflict?.version !== read.version) setConflict({ text: read.text, version: read.version });
+          return;
+        }
+        setBefore(cur.loaded);
+        setLoaded({ text: read.text, version: read.version });
+        setDraft(read.text); setPast([]); setFuture([]);
+        toast(`${doc.id} was changed on disk`);
+        if (doc.path) setCheck(await ops.checkDocument(doc.repo, doc.path).catch(() => null));
+        void reload();
+      } catch { /* the service may be restarting; the next read tries again */ }
+    }, 4000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ops, doc.repo, doc.id, doc.path]);
+
+  // Where a name that resolves to nothing is defined now, asked of the index.
+  useEffect(() => {
+    if (!check?.references?.some((r) => r.status === "unresolved")) { setSuggestions([]); return; }
+    let live = true;
+    ops.suggestFixes(doc.repo, doc.id).then((a) => { if (live) setSuggestions(a.suggestions); }).catch(() => { if (live) setSuggestions([]); });
+    return () => { live = false; };
+  }, [check, ops, doc.repo, doc.id]);
+
   const change = (next: string) => { if (next === draft) return; setPast((p) => [...p.slice(-99), draft]); setFuture([]); setDraft(next); };
   const undo = () => { const p = past[past.length - 1]; if (p === undefined) return; setFuture((f) => [draft, ...f]); setPast(past.slice(0, -1)); setDraft(p); };
   const redo = () => { const n = future[0]; if (n === undefined) return; setPast((p) => [...p, draft]); setFuture(future.slice(1)); setDraft(n); };
@@ -80,12 +126,12 @@ export default function Editor({
     toast(`Replaced ${hits} occurrence${hits === 1 ? "" : "s"}`);
   };
 
-  const save = async (version: string) => {
+  const save = async (version: string, text: string = draft) => {
     if (!loaded) return;
     setSaving(true); setProblem(null);
     try {
-      const result = await ops.writeDocument(doc.repo, doc.id, draft, version);
-      setLoaded({ text: draft, version: result.version });
+      const result = await ops.writeDocument(doc.repo, doc.id, text, version);
+      setLoaded({ text, version: result.version });
       setCheck(result.check);
       setConflict(null);
       toast(result.changed ? `Saved ${doc.id}` : "Nothing to save");
@@ -94,6 +140,54 @@ export default function Editor({
       if (e instanceof ConflictError) setConflict({ text: e.current.text, version: e.current.version });
       else setProblem(e?.message ?? String(e));
     } finally { setSaving(false); }
+  };
+
+  // Write an older text back over the file. Refused while there are unsaved edits,
+  // because it would discard them.
+  const goBack = async (text: string) => {
+    if (!loaded || dirty) return;
+    setSaving(true); setProblem(null);
+    try {
+      const result = await ops.writeDocument(doc.repo, doc.id, text, loaded.version);
+      setLoaded({ text, version: result.version });
+      setDraft(text); setPast([]); setFuture([]);
+      setCheck(result.check); setBefore(null); setShowChanges(null);
+      toast("Went back to the older text");
+      await reload();
+    } catch (e: any) {
+      if (e instanceof ConflictError) setConflict({ text: e.current.text, version: e.current.version });
+      else setProblem(e?.message ?? String(e));
+    } finally { setSaving(false); }
+  };
+
+  const showCommitted = async () => {
+    try {
+      const c = await ops.committedDocument(doc.repo, doc.id);
+      setCommitted({ text: c.text, version: c.version }); setShowChanges("commit");
+    } catch (e: any) { toast(e?.message ?? String(e)); }
+  };
+
+  // Put a suggested name in place of the one that resolves to nothing. With nothing
+  // else unsaved it is written at once, so the check answers for the new text.
+  const applyFix = (field: string, name: string, replacement: string) => {
+    if (field !== "affects" && field !== "refines") return;
+    const next = replaceItem(draft, field, name, replacement);
+    if (next === draft) { toast("That entry is not in the text any more"); return; }
+    const clean = !dirty;
+    change(next);
+    if (clean && loaded) void save(loaded.version, next);
+    else toast("Changed in the text. Save to check it again.");
+  };
+
+  const fixTask = (refs: { ref: string; kind: string }[]) => {
+    const lines = refs.map((r) => {
+      const found = suggestions.find((s) => s.field === r.kind && s.name === r.ref);
+      const hint = found?.candidates.length ? `  (the index now has ${found.candidates.map((c) => c.replacement).join(" or ")})` : "";
+      return `- ${r.kind}: ${r.ref}${hint}`;
+    }).join("\n");
+    return `In ${doc.repo}, the document ${doc.path} (${doc.id}) declares references that resolve to nothing in the index:\n\n${lines}\n\n` +
+      `For each one, find where it is defined now (use the synoptik find and describe tools) and change that reference in the file. ` +
+      `Change nothing else in the document. Then run check-document on ${doc.path} and say which references still do not resolve.`;
   };
 
   const setStatus = async (status: string) => {
@@ -132,12 +226,21 @@ export default function Editor({
         <button className="btn" onClick={redo} disabled={!future.length} aria-label="Redo"><Redo2 size={16} /></button>
         <button className="btn" onClick={() => setShowFind(!showFind)} aria-label="Find and replace"><Replace size={16} /> <span className="hidden sm:inline">Find</span></button>
         <button className={`btn ${raw ? "!border-accent text-accent" : ""}`} onClick={() => setRaw(!raw)}><Code2 size={16} /> YAML</button>
+        <button className="btn" onClick={() => void showCommitted()} title="What differs from the last commit"><History size={16} /> <span className="hidden sm:inline">Changes</span></button>
         <span className="flex-1" />
         {dirty && <span className="text-xs text-mute">unsaved</span>}
         <button className="btn btn-primary" disabled={!dirty || saving || yamlErrors.length > 0} onClick={() => void save(loaded.version)}>
           <Save size={16} /> Save
         </button>
       </div>
+
+      {before && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-sky-500/10 p-2 text-sm">
+          <span>{doc.id} was changed on disk, outside this editor.</span>
+          <button className="btn" onClick={() => setShowChanges("outside")}>Show changes</button>
+          <button className="btn" onClick={() => setBefore(null)}>Dismiss</button>
+        </div>
+      )}
 
       {showFind && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line bg-line/20 p-2">
@@ -174,17 +277,46 @@ export default function Editor({
             check_document
             <span className={`chip ${problems ? "!border-red-500 text-red-500" : "!border-emerald-500 text-emerald-600"}`}>{problems ? `${problems} unresolved` : "clean"}</span>
           </button>
+          {problems > 0 && <button className="btn mb-2 w-full" onClick={() => setAsk(fixTask(refChecks.filter((c) => !c.ok)))}><Bot size={16} /> Ask an agent to fix {problems}</button>}
           <ul className={`space-y-1 xl:block ${checkOpen ? `block overflow-y-auto ${wide ? "max-h-[50vh]" : "max-h-40"}` : "hidden"}`}>
-            {refChecks.map((c, i) => (
-              <li key={i} className={`flex items-start gap-1.5 ${wide ? "text-sm" : "text-xs"}`}>
-                {c.ok ? <Check size={14} className="mt-0.5 shrink-0 text-emerald-500" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-500" />}
-                <span><span className="text-mute">{c.kind}</span> <span className="font-mono">{c.ref}</span>{!c.ok && " resolves to nothing"}</span>
-              </li>
-            ))}
+            {refChecks.map((c, i) => {
+              const found = c.ok ? undefined : suggestions.find((x) => x.field === c.kind && x.name === c.ref);
+              const fixable = c.kind === "affects" || c.kind === "refines";
+              return (
+                <li key={i} className={`${wide ? "text-sm" : "text-xs"}`}>
+                  <div className="flex items-start gap-1.5">
+                    {c.ok ? <Check size={14} className="mt-0.5 shrink-0 text-emerald-500" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-500" />}
+                    <span className="min-w-0 break-words"><span className="text-mute">{c.kind}</span> <span className="font-mono">{c.ref}</span>{!c.ok && " resolves to nothing"}</span>
+                  </div>
+                  {!c.ok && (
+                    <div className="ml-5 mt-1 flex flex-col items-start gap-1">
+                      {found?.candidates.slice(0, 4).map((cand) => (
+                        <button key={cand.replacement} className="btn !h-auto !min-h-[36px] max-w-full !justify-start !whitespace-normal text-left" disabled={!fixable}
+                          title={cand.replacement} onClick={() => applyFix(c.kind, c.ref, cand.replacement)}>
+                          Use <span className="break-all font-mono">{cand.file}</span>
+                        </button>
+                      ))}
+                      {found && found.candidates.length === 0 && <span className="text-mute">Nothing with that name is in the index.</span>}
+                      <button className="btn !min-h-[36px]" onClick={() => setAsk(fixTask([c]))}><Bot size={14} /> Ask an agent</button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <p className="mt-3 text-xs text-mute">As the service last read the file: {check ? "check-document" : "not checked"}. Saving checks the text written.</p>
         </aside>
       </div>
+
+      {showChanges === "outside" && before && (
+        <Changes title="What changed on disk" note="Red lines were in the text before the change; green lines are there now."
+          older={before.text} newer={loaded.text} canRevert={!dirty} onRevert={() => void goBack(before.text)} onClose={() => setShowChanges(null)} />
+      )}
+      {showChanges === "commit" && committed && (
+        <Changes title="Since the last commit" note="Red lines are what git holds; green lines are the file now. Going back writes git's text over the file."
+          older={committed.text} newer={loaded.text} canRevert={!dirty} onRevert={() => void goBack(committed.text)} onClose={() => setShowChanges(null)} />
+      )}
+      {ask !== null && <AskAgent client={client} repo={doc.repo} task={ask} onClose={() => setAsk(null)} toast={toast} />}
 
       {conflict && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-6">

@@ -2,7 +2,7 @@
 // change (DES-0057 D14, D15). The parse supplies positions and the edit
 // replaces one node's characters in the original text. The document is never
 // re-serialised: that changed 484 of 489 documents in spike S2.
-import { isMap, isScalar, parseDocument, type Document, type Node, type Pair } from "yaml";
+import { isMap, isScalar, isSeq, parseDocument, type Document, type Node, type Pair } from "yaml";
 
 export interface Fields {
   id: string;
@@ -131,4 +131,23 @@ export function setList(text: string, key: (typeof LIST_KEYS)[number], items: st
 export function setBlock(text: string, key: "summary" | "body", value: string): string {
   if (readFields(text)[key] === value.replace(/\n+$/, "")) return text;
   return replaceValue(text, key, blockScalar(value), true);
+}
+
+/**
+ * Replace one entry of a list field with another, in place. The entry's own
+ * characters are the only ones that change: a list written one name to a line
+ * stays that way, and so does the quoting an entry had. Returns TEXT itself
+ * when the list has no such entry.
+ */
+export function replaceItem(text: string, key: (typeof LIST_KEYS)[number], from: string, to: string): string {
+  const doc = parse(text);
+  const pair = pairFor(doc, key);
+  const seq = pair?.value;
+  if (!isSeq(seq)) return text;
+  const item = seq.items.find((i) => isScalar(i) && i.value === from);
+  if (!item || !isScalar(item) || !item.range) return text;
+  const [start, end] = item.range;
+  const quoted = text[start] === '"' || text[start] === "'";
+  // The range of a quoted scalar ends after the closing quote; of a plain one, after its last character.
+  return text.slice(0, start) + (quoted ? JSON.stringify(to) : scalar(to)) + text.slice(end);
 }

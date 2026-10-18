@@ -4,9 +4,9 @@
 
 /** Read-tier operations. Forwarded as GET. */
 export const READS = [
-  "check", "check-document", "context", "describe", "documents", "drift", "find",
+  "check", "check-document", "committed-document", "context", "describe", "documents", "drift", "find",
   "impact", "read-document", "rules", "server-status", "similar", "sites",
-  "status", "structure", "survey",
+  "status", "structure", "suggest-fixes", "survey",
 ] as const;
 
 /** Write-tier operations. Forwarded as POST and always need the token when one is set. */

@@ -47,7 +47,7 @@
     ;; empty: a caller iterating them should get [] rather than having to
     ;; treat null as "none".
     :unenforced :collisions :unhandled-definer-macros :items :seeds :relations
-    :properties-filters :call-names
+    :properties-filters :call-names :suggestions :candidates
     ;; The transition report (REQ-0022). :PROBLEMS empty is the ordinary
     ;; answer and :CHANGED empty is what a dry run and an already-completed
     ;; plan both return, so all three have to encode as [] rather than null --

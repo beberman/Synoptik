@@ -100,3 +100,25 @@ describe("adding a field the document lacks", () => {
     expect(readFields(after).title).toBe("Users share a board: live");
   });
 });
+
+describe("replacing one list entry", () => {
+  const block = `id: X-1\ntitle: t\naffects:\n  - "function:a.js:old"\n  - plain-name\n  - 'function:b.js:keep'\nbody: |\n  text\n`;
+  it("changes only that entry and keeps the layout and the quoting", async () => {
+    const { replaceItem } = await import("../src/yamlEdit.js");
+    const out = replaceItem(block, "affects", "function:a.js:old", "function:c.js:old");
+    expect(out).toBe(block.replace("function:a.js:old", "function:c.js:old"));
+    expect(readFields(out).affects).toEqual(["function:c.js:old", "plain-name", "function:b.js:keep"]);
+    const plain = replaceItem(block, "affects", "plain-name", "function:d.js:name");
+    expect(plain).toContain('  - "function:d.js:name"\n');
+    expect(plain.split("\n").length).toBe(block.split("\n").length);
+  });
+  it("leaves a flow list on one line", async () => {
+    const { replaceItem } = await import("../src/yamlEdit.js");
+    const flow = `id: X-1\naffects: ["function:a.js:old", other]\n`;
+    expect(replaceItem(flow, "affects", "function:a.js:old", "function:z.js:old")).toBe(`id: X-1\naffects: ["function:z.js:old", other]\n`);
+  });
+  it("returns the text unchanged when the entry is not there", async () => {
+    const { replaceItem } = await import("../src/yamlEdit.js");
+    expect(replaceItem(block, "affects", "nothing", "x")).toBe(block);
+  });
+});

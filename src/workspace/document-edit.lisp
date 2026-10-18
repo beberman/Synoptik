@@ -189,3 +189,94 @@ two that are allowed."
           (error (condition)
             (list :problems (list (format nil "The ~a was not created: ~a"
                                           category condition)))))))))
+
+;;;; ==================================================================
+;;;; Working with an agent on a document (REQ-0080 R18-R20, DES-0057 D18)
+;;;; ==================================================================
+
+(defun reference-name-part (name)
+  "The part of a declared reference an entity is named by: `netArea` in
+`function:src/a.js:netArea`, and NAME itself when it carries no prefix."
+  (let ((colon (position #\: name :from-end t)))
+    (if colon (subseq name (1+ colon)) name)))
+
+(defun document-id-reference-p (name)
+  "True for a reference that names a document, as REQ-0007 does."
+  (let ((dash (position #\- name)))
+    (and dash (plusp dash) (< (1+ dash) (length name))
+         (every #'upper-case-p (subseq name 0 dash))
+         (every #'digit-char-p (subseq name (1+ dash))))))
+
+(defun suggestion-candidates (graph name)
+  "Entities the unresolved reference NAME may now mean: those called its last
+part exactly, code before anything else, and the ones of the type it declared
+first. Documents are not offered, because a code reference does not mean one."
+  (let* ((part (reference-name-part name))
+         (declared (and (position #\: name) (subseq name 0 (position #\: name))))
+         ;; SEARCH-ENTITIES answers rows, the ones `find' prints, and not entities.
+         (rows (remove-if
+                (lambda (row) (member (getf row :type) *document-types*))
+                (remove-if-not (lambda (row) (string-equal (getf row :name) part))
+                               (synoptik-knowledge:search-entities graph :name part :limit 200))))
+         (ranked (stable-sort (copy-list rows) #'<
+                              :key (lambda (row)
+                                     (if (and declared (string-equal (string (getf row :type)) declared))
+                                         0 1)))))
+    (mapcar (lambda (row)
+              (let* ((location (getf row :location))
+                     (colon (position #\: location :from-end t)))
+                (list :replacement (getf row :id)
+                      :file (if colon (subseq location 0 colon) location)
+                      :type (string-downcase (string (getf row :type))))))
+            ranked)))
+
+(defun reference-suggestions (repository designator &key text)
+  "For each reference DESIGNATOR declares that resolves to nothing, the entities
+the index holds under the name it ends in. A plist: :DOCUMENT, :ADDRESS and
+:SUGGESTIONS, one (:FIELD :NAME :CANDIDATES) per reference, or :PROBLEMS.
+
+TEXT is a draft that is not saved; without it the stored text is read. Nothing
+is asserted and nothing is written. The usual cause is code that moved, which
+the index can see and the document cannot: one candidate is a move, several are
+a choice the author makes, and none is a reference that names nothing now."
+  (multiple-value-bind (repository refusal) (resolve-repository-argument repository)
+    (when refusal (return-from reference-suggestions refusal))
+    (multiple-value-bind (ref address entity problems) (document-store-ref repository designator)
+      (declare (ignore ref))
+      (when problems (return-from reference-suggestions (list :problems problems)))
+      (let* ((checked (check-document-references repository address :contents text))
+             (graph (repository-graph repository)))
+        (if (getf checked :error)
+            (list :problems (list (getf checked :error)))
+            (list :repository (repository-name repository)
+                  :document (or (getp entity :doc-id) designator)
+                  :address address
+                  :suggestions
+                  (loop for reference in (getf checked :references)
+                        when (and (eq (getf reference :status) :unresolved)
+                                  (not (document-id-reference-p (getf reference :name))))
+                          collect (list :field (getf reference :field)
+                                        :name (getf reference :name)
+                                        :candidates (suggestion-candidates
+                                                     graph (getf reference :name))))))))))
+
+(defun committed-document-text (repository designator)
+  "The text git holds for one document at HEAD, so an edit can be undone when
+the caller no longer has the text from before. A plist with :TEXT, :VERSION and
+:COMMIT, or :PROBLEMS when the document is not in a git repository, has never
+been committed, or git cannot answer."
+  (multiple-value-bind (repository refusal) (resolve-repository-argument repository)
+    (when refusal (return-from committed-document-text refusal))
+    (multiple-value-bind (ref address entity problems) (document-store-ref repository designator)
+      (declare (ignore ref))
+      (when problems (return-from committed-document-text (list :problems problems)))
+      (multiple-value-bind (text reason)
+          (git-output (repository-root repository) "show" (format nil "HEAD:~a" address))
+        (if text
+            (list :repository (repository-name repository)
+                  :doc-id (or (getp entity :doc-id) designator)
+                  :address address
+                  :text text
+                  :version (text-version-token text)
+                  :commit (git-commit (repository-root repository)))
+            (list :problems (list (format nil "~a has no committed text: ~a" address reason))))))))

@@ -147,3 +147,66 @@
                          (synoptik-workspace::walk-tree root))))
       (is (equal '("lib/z.md" "src/a.md" "web/ok/d.md")
                  (sort (copy-list found) #'string<))))))
+
+;;; Suggestions and the committed text (REQ-0080 R20)
+
+(defun run-git (root &rest arguments)
+  (uiop:run-program (append (list "git" "-C" (namestring root)) arguments)
+                    :output :string :error-output :string))
+
+(test an-unresolved-reference-is-offered-where-its-name-is-defined-now
+  ;; The case that prompted R20: `netArea' moved from one file to another and the
+  ;; decision still names the first.
+  (with-document-tree (root)
+    (write-document root "src/new-place.lisp" (format nil "(defun moved-thing () 1)~%"))
+    (write-document root "docs/requirements/REQ-0001.yaml"
+                    (format nil "id: REQ-0001~%title: a requirement~%status: draft~%~
+affects: [\"function:src/old-place.lisp:moved-thing\", \"function:src/new-place.lisp:moved-thing\", gone-for-good]~%~
+refines: [REQ-0099]~%body: |~%  R1  the ask.~%"))
+    (with-indexed-tree (repository root)
+      (let* ((report (reference-suggestions repository "REQ-0001"))
+             (by-name (lambda (name)
+                        (find name (getf report :suggestions) :key (lambda (s) (getf s :name))
+                                                              :test #'string=))))
+        (is (null (getf report :problems)))
+        (is (= 2 (length (getf report :suggestions)))
+            "the resolved reference and the document reference draw no suggestion")
+        (let ((candidates (getf (funcall by-name "function:src/old-place.lisp:moved-thing") :candidates)))
+          (is (= 1 (length candidates)))
+          (is (search "src/new-place.lisp" (getf (first candidates) :replacement))))
+        (is (null (getf (funcall by-name "gone-for-good") :candidates))
+            "a name defined nowhere has no candidate, and is reported as that")))))
+
+(test a-draft-is-checked-instead-of-the-saved-text
+  (with-document-tree (root)
+    (write-document root "src/new-place.lisp" (format nil "(defun moved-thing () 1)~%"))
+    (write-document root "docs/requirements/REQ-0001.yaml" (requirement-document "REQ-0001"))
+    (with-indexed-tree (repository root)
+      (let ((draft (format nil "id: REQ-0001~%title: a requirement~%status: draft~%~
+affects: [\"function:src/old-place.lisp:moved-thing\"]~%body: |~%  R1  the ask.~%")))
+        (is (null (getf (reference-suggestions repository "REQ-0001") :suggestions)))
+        (is (= 1 (length (getf (reference-suggestions repository "REQ-0001" :text draft)
+                               :suggestions))))))))
+
+(test the-committed-text-is-what-git-holds-and-not-the-edited-file
+  (with-document-tree (root)
+    (write-document root "docs/requirements/REQ-0001.yaml" (requirement-document "REQ-0001"))
+    (run-git root "init" "-q")
+    (run-git root "add" "-A")
+    (run-git root "-c" "user.email=t@t" "-c" "user.name=t" "commit" "-q" "-m" "first")
+    (with-indexed-tree (repository root)
+      (let* ((read (read-document-text repository "REQ-0001"))
+             (edited (concatenate 'string (getf read :text) "tags: [later]" (string #\Newline))))
+        (write-document-text repository "REQ-0001" edited (getf read :version))
+        (let ((committed (committed-document-text repository "REQ-0001")))
+          (is (null (getf committed :problems)))
+          (is (string= (requirement-document "REQ-0001") (getf committed :text)))
+          (is (string= (getf read :version) (getf committed :version))
+              "the version is the one a read of that text gives, so it can be written back"))))))
+
+(test a-document-git-has-never-seen-has-no-committed-text
+  (with-document-tree (root)
+    (write-document root "docs/requirements/REQ-0001.yaml" (requirement-document "REQ-0001"))
+    (run-git root "init" "-q")
+    (with-indexed-tree (repository root)
+      (is (getf (committed-document-text repository "REQ-0001") :problems)))))

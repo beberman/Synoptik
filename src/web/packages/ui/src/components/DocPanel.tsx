@@ -53,7 +53,7 @@ export default function DocPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "edit" ? (
-          <Editor wide={wide} metaSlot={tab === "edit" ? metaSlot : null} ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
+          <Editor client={client} wide={wide} metaSlot={tab === "edit" ? metaSlot : null} ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
         ) : (
           <div className="space-y-5 p-4">
             <Group title="Refines" empty="Refines nothing.">

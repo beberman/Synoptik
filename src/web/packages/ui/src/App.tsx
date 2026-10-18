@@ -83,6 +83,7 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
 
   const ws = useMemo(() => ({
     repoNames: repos.map((r) => r.name),
+    repoPaths: Object.fromEntries(repos.map((r) => [r.name, r.path])),
     statuses: distinct(docs.map((d) => d.status)),
     priorities: distinct(docs.map((d) => d.priority)),
   }), [repos, docs]);
@@ -116,9 +117,9 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
     <WsContext.Provider value={ws}>
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-1.5 border-b border-line bg-panel px-2 py-2 sm:gap-2 sm:px-3">
-        <button className="flex min-h-[44px] items-center gap-2 rounded-lg pr-2 hover:bg-line/40 md:min-h-0" onClick={home} aria-label="Synoptik home" title="Back to the home view">
-          <FileText size={20} className="text-accent" />
-          <span className="font-semibold">Synoptik</span>
+        <button className="flex min-h-[44px] items-center gap-2 rounded-lg pr-2 hover:bg-line/40 max-[419px]:min-w-[44px] max-[419px]:justify-center max-[419px]:pr-0 md:min-h-0" onClick={home} aria-label="Synoptik home" title="Back to the home view">
+          <FileText size={20} className="ml-1 text-accent" />
+          <span className="hidden font-semibold min-[420px]:inline">Synoptik</span>
         </button>
         <span className="flex-1" />
         <button className="btn md:hidden" onClick={() => setShowFilters(true)} aria-label="Filters"><Filter size={16} /></button>

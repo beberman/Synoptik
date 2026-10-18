@@ -179,6 +179,22 @@ body: |
       scroll and controls of at least 44 px for every view, and the graph's list
       form. Repeat against the plugin build.
 
+  S16 Changes made outside the editor (R18). The editor polls the open document's
+      version, takes an outside change when nothing is unsaved, keeps the text
+      from before, and shows a line diff with a way back; unsaved edits open the
+      refused-save dialog. `committed-document` answers git's text for the
+      other way back. Tests: `diff.test.ts`, the Lisp tests for the operation,
+      and the browser run (an outside write, the diff, going back).
+
+  S17 Suggested fixes (R20). `suggest-fixes` on the service; `replaceItem` in
+      yamlEdit.ts, tested for layout and quoting; the check column offers each
+      candidate and saves the replacement when nothing else is unsaved. The
+      browser run moves a function between files and uses the offer.
+
+  S18 Asking an agent (R19). The task text is built from the unresolved
+      references and the candidates, shown for editing, and sent through the
+      adapter that can launch. With none, the dialog says so and does not send.
+
   S14 The `synoptik-cloudcli-plugin` repository: `manifest.json` at the root,
       `src/index.ts` with `mount` and `unmount`, `src/server.ts` calling
       `createHandler`, a pinned dependency on the `src/web` packages. Install it

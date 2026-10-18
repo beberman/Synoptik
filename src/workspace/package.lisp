@@ -180,6 +180,8 @@
    #:document-held-p
    #:read-document-text
    #:write-document-text
+   #:reference-suggestions
+   #:committed-document-text
    #:create-document
    #:text-version-token
 

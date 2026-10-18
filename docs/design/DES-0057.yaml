@@ -226,6 +226,27 @@ body: |
       folder cannot leave a dead entry. An unparsable file is handled as in D16.
       The prototype keeps both files in browser storage.
 
+  D18 Working with an agent on a document. Three additions, none of which makes
+      the editor a shared one. The agent edits the file; the editor follows it.
+      (1) The editor reads the open document every four seconds while the page
+      is visible and compares the version token it holds. A change with no
+      unsaved edit is taken, the text from before is kept in memory, and a
+      notice offers a line diff and a way back, which writes that text with the
+      version just read, so a third change in between is refused. A change with
+      unsaved edits opens the refused-save dialog. Polling was chosen over
+      `/api/events` because the events carry status changes and not documents,
+      and a read costs 0.03 s. (2) `suggest-fixes` (:read, REST only) takes a
+      repository and a document and answers, for each declared reference that
+      resolves to nothing and is not a document id, the code entities the index
+      holds under the last part of its name: `{replacement, file, type}`,
+      declared type first. `committed-document` (:read) answers the text git
+      holds at HEAD with a version token, through the repository's `git show`.
+      Neither writes. (3) The UI replaces one list entry with `replaceItem` in
+      yamlEdit.ts, which splices that entry's range and keeps the quoting and the
+      layout of the rest. The agent task is built in the editor from the
+      references and candidates and sent through the existing launch route after
+      the person has read it; the Node server reads no file and writes none.
+
   THE EDITOR
 
   D14 The editor opens a document from `read-document`. The YAML is parsed with a

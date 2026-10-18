@@ -839,6 +839,17 @@ reference check of what was written."
             :check (check-document-references repository (getf report :address)
                                               :contents (getf report :text))))))
 
+(define-operation :suggest-fixes :read (repository document (text))
+    "For each reference a document declares that resolves to nothing, the code \
+entities the index holds under the name it ends in: where something that moved \
+now is. Pass text to ask about a draft that is not saved."
+  (text-result (reference-suggestions (require-repository repository) document :text text)))
+
+(define-operation :committed-document :read (repository document)
+    "The text git holds for a document at HEAD, with a version to write it back \
+with: what an edit is undone to when no earlier text is at hand."
+  (text-result (committed-document-text (require-repository repository) document)))
+
 (defun refines-list (refines)
   "REFINES as a list of names: a JSON array, or one string split at commas and spaces."
   (etypecase refines

@@ -71,6 +71,10 @@ export interface DocumentRow {
 }
 export interface RepositoryDocuments { repository: string; documents: DocumentRow[] }
 export interface DocumentText { repository: string; "doc-id": string; address: string; text: string; version: string }
+export interface Candidate { replacement: string; file: string; type: string }
+export interface Suggestion { field: string; name: string; candidates: Candidate[] }
+export interface Suggestions { repository: string; document: string; address: string; suggestions: Suggestion[] }
+export interface CommittedText { repository: string; "doc-id": string; address: string; text: string; version: string; commit: string }
 export interface WriteResult { address: string; changed: boolean; version: string; check: CheckResult }
 export interface CheckReference { field: string; name: string; status: "resolved" | "unresolved" | "ambiguous" | "self"; target?: string; type?: string; candidates?: string[] }
 export interface CheckResult { path: string; document?: string; type?: string; error?: string; references?: CheckReference[] }
@@ -94,6 +98,10 @@ export const operations = (client: Client) => ({
     client("POST", "/api/v1/write-document", { repository, document, text, version }) as Promise<unknown> as Promise<WriteResult>,
   createDocument: (repository: string, category: "req" | "bug", title: string, refines: string[] = []) =>
     client("POST", "/api/v1/create-document", { repository, category, title, refines }) as Promise<unknown> as Promise<CreatedDocument>,
+  suggestFixes: (repository: string, document: string) =>
+    client("GET", `/api/v1/suggest-fixes${q({ repository, document })}`) as Promise<unknown> as Promise<Suggestions>,
+  committedDocument: (repository: string, document: string) =>
+    client("GET", `/api/v1/committed-document${q({ repository, document })}`) as Promise<unknown> as Promise<CommittedText>,
   checkDocument: (repository: string, path: string) =>
     client("GET", `/api/v1/check-document${q({ repository, path })}`) as Promise<unknown> as Promise<CheckResult>,
   setStatus: (repository: string, document: string, status: string) =>

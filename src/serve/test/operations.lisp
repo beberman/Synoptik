@@ -758,7 +758,7 @@ the second for the first is the defect" json-price console-price)
 
 (defparameter *whole-repository-reads*
   '(:check :rules :structure :drift :survey :check-document :status
-    :server-status :documents :read-document)
+    :server-status :documents :read-document :suggest-fixes :committed-document)
   "Read operations that answer about a whole repository by construction.
 
 R-i is the one silent wrong answer DES-0047 leaves reachable: scoping is

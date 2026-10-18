@@ -202,6 +202,31 @@ body: |
       with the required fields present and empty sections to fill in. The author
       may name the documents it refines, chosen from the explorer's list.
 
+  R18 Changes made outside the editor. A document open in the editor is read
+      again every few seconds while the page is in view. When the file changed
+      and the editor holds no unsaved edit, the new text replaces the old, a
+      notice says the file was changed outside the editor, and the person can
+      see the difference and go back to the text from before. When the editor
+      holds unsaved edits they are never replaced: the person is shown both
+      texts and chooses, as for a refused save. The editor can also show what
+      differs from the last commit and go back to it, which the Synoptik
+      service answers from git, because the Node server does not read files.
+
+  R19 Asking an agent. From a document, and from each reference that resolves to
+      nothing, the person can ask an agent to fix it. The UI writes the task,
+      naming the file, the references and what the index found, and the person
+      reads and edits it before it is sent. The agent edits the file in the
+      checkout the service watches. Several agents at once will each need a
+      worktree of their own and are not part of this requirement.
+
+  R20 Suggested fixes. For a reference that resolves to nothing, the UI offers
+      the entities the index holds under the name the reference ends in, as one
+      action that replaces the reference. Only the characters of that entry
+      change: a list written a name to a line stays that way. With no unsaved
+      edits the replacement is saved at once and the check runs again on the
+      text written; otherwise it is made in the editor and saved with the
+      rest. A name defined nowhere is reported as that, and is not guessed.
+
   ACCEPTANCE
 
   Open the standalone UI against the running service. Filter to requirements
@@ -237,6 +262,14 @@ body: |
   adapter alone, see which sessions have queried Synoptik and when. With the
   CloudCLI adapter configured on the standalone shell, launch a session, watch
   its status move from working to waiting or finished, and stop another.
+
+  Open a document, and from a terminal change a line of its file. See the
+  editor take the new text, say so, show the changed lines, and go back to the
+  text from before. Do the same while holding an unsaved edit and see the edit
+  kept and both texts offered. Open a decision whose `affects:` names a function
+  that has since moved, see the file it is in now offered, choose it, and see
+  only that entry change on disk and the check report it resolved. Ask an agent
+  to fix an unresolved reference and read the task before it is sent.
 
   OPEN QUESTIONS
 
