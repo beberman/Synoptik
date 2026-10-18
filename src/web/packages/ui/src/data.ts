@@ -130,3 +130,35 @@ export function widen(all: Doc[], matched: Set<string>, hops: number): Set<strin
   }
   return seen;
 }
+
+/**
+ * The statuses a document of each type may take, and the ones that file it in
+ * completed/. This restates CON-0004 and `*workflow-status-vocabulary*` in
+ * src/workspace/transition.lisp, which is the authority: the service refuses a
+ * status outside its table, so a drift here shows as a refused change.
+ */
+export const STATUS_VOCAB: Record<string, { allowed: string[]; terminal: string[] }> = {
+  REQ: { allowed: ["draft", "accepted", "implemented", "partial", "closed"], terminal: ["implemented", "closed"] },
+  DES: { allowed: ["draft", "accepted", "implemented", "partial", "superseded"], terminal: ["implemented", "superseded"] },
+  PLAN: { allowed: ["draft", "final"], terminal: ["final"] },
+  BUG: { allowed: ["open", "closed"], terminal: ["closed"] },
+  REV: { allowed: ["open", "closed"], terminal: ["closed"] },
+  ARCH: { allowed: ["draft", "accepted", "superseded"], terminal: [] },
+  DEC: { allowed: ["proposed", "accepted", "superseded", "rejected"], terminal: [] },
+  RULE: { allowed: ["active", "retired"], terminal: [] },
+};
+
+/**
+ * The classifying fields each type shows at the top of its document, in order,
+ * with the values offered. A field already in the file is shown whatever the
+ * type; these are the ones shown even when the file has none yet.
+ */
+export type MetaField = "importance" | "priority" | "severity";
+export const META_DEFAULTS: Record<string, MetaField[]> = {
+  REQ: ["importance"], DES: ["importance"], BUG: ["severity", "priority"], RULE: ["severity"],
+};
+const SEVERITY_BY_TYPE: Record<string, string[]> = { RULE: ["error", "warning", "advisory"] };
+export const META_VALUES = (field: MetaField, type: string): string[] =>
+  field === "importance" ? ["Minor", "Major", "Critical"]
+  : field === "priority" ? ["p1", "p2", "p3", "p4", "p5"]
+  : SEVERITY_BY_TYPE[type] ?? ["minor", "major", "critical"];

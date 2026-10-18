@@ -68,6 +68,7 @@ export interface UiState {
   dark?: boolean;
   selected?: string | null;
   recent?: string[];
+  wide?: boolean;
 }
 
 /** Interface state kept on the server (DES-0057 D17), so a phone and a desktop agree. */

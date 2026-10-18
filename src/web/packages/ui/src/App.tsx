@@ -36,11 +36,12 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
   const [panel, setPanel] = useState<Panel>(null);
   const [showNew, setShowNew] = useState(false);
   const [dark, setDark] = useState(() => saved.dark ?? window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [wide, setWide] = useState(saved.wide ?? false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => { document.documentElement.classList.toggle("dark", dark); }, [dark]);
   useEffect(() => { if (!message) return; const t = setTimeout(() => setMessage(null), 3500); return () => clearTimeout(t); }, [message]);
-  useUiState(client, { filters, view, dark, selected, recent }, true);
+  useUiState(client, { filters, view, dark, selected, recent, wide }, true);
   useEffect(() => { if (selected) setRecent((r) => [selected, ...r.filter((k) => k !== selected)].slice(0, 8)); }, [selected]);
 
   const ws = useMemo(() => ({
@@ -67,6 +68,7 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
   const tooBig = view === "map" && visible.length > MAP_LIMIT;
   const multi = new Set(visible.map((d) => d.repo)).size > 1;
   const sidePanel = doc || panel;
+  const full = wide && !!doc;
 
   const sidebar = (onClose?: () => void) => (
     <Sidebar docs={inWorkspace} filters={filters} set={setFilters} counts={counts} repoNames={repoNames} onClose={onClose}
@@ -94,9 +96,9 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
       {damaged && <div role="alert" className="bg-amber-500/20 px-3 py-1.5 text-center text-xs font-medium text-amber-700 dark:text-amber-400">~/.synoptik/web.json does not parse ({damaged}). Workspace changes are not saved until it is fixed or deleted.</div>}
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-72 shrink-0 border-r border-line bg-panel md:block">{sidebar()}</aside>
+        <aside className={`hidden w-72 shrink-0 border-r border-line bg-panel ${full ? "" : "md:block"}`}>{sidebar()}</aside>
 
-        <main className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+        <main className={`min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3 ${full ? "hidden" : "flex"}`}>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-medium">{visible.length} documents</span>
             <span className="text-mute">{matchedCount} match{filters.widen ? `, ${visible.length - matchedCount} connected` : ""}</span>
@@ -130,7 +132,7 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
         </main>
 
         {sidePanel && (
-          <aside className="fixed inset-0 z-40 flex flex-col bg-panel md:static md:z-auto md:w-[min(46vw,640px)] md:border-l md:border-line">
+          <aside className={`fixed inset-0 z-40 flex flex-col bg-panel md:static md:z-auto md:border-l md:border-line ${full ? "md:flex-1" : "md:w-[min(46vw,640px)]"}`}>
             {panel && (
               <div className={doc ? "h-1/3 border-b border-line" : "h-full"}>
                 {panel === "agents"
@@ -140,7 +142,7 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved }: {
             )}
             {doc && (
               <div className="min-h-0 flex-1">
-                <DocPanel key={key(doc)} client={client} ops={ops} doc={doc} all={inWorkspace} onClose={() => setSelected(null)} onSelect={setSelected} toast={setMessage} reload={reload} />
+                <DocPanel key={key(doc)} client={client} ops={ops} doc={doc} all={inWorkspace} onClose={() => setSelected(null)} wide={wide} onWide={() => setWide(!wide)} onSelect={setSelected} toast={setMessage} reload={reload} />
               </div>
             )}
           </aside>

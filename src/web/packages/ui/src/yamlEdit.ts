@@ -9,6 +9,7 @@ export interface Fields {
   title: string;
   status: string;
   priority: string;
+  importance: string;
   severity: string;
   date: string;
   tags: string[];
@@ -19,7 +20,7 @@ export interface Fields {
 }
 
 const LIST_KEYS = ["tags", "refines", "affects"] as const;
-const STRING_KEYS = ["id", "title", "status", "priority", "severity", "date", "summary", "body"] as const;
+const STRING_KEYS = ["id", "title", "status", "priority", "importance", "severity", "date", "summary", "body"] as const;
 
 export function parse(text: string): Document.Parsed {
   return parseDocument(text, { keepSourceTokens: false });
@@ -69,7 +70,9 @@ const flowList = (items: string[]) => `[${items.map(scalar).join(", ")}]`;
 /** VALUE as a literal block scalar's lines, indented under a key at column 0. */
 function blockScalar(value: string): string {
   const lines = value.replace(/\n+$/, "").split("\n");
-  return "|\n" + lines.map((line) => (line ? `  ${line}` : "")).join("\n") + "\n";
+  // A first line that starts with spaces would otherwise set the indentation of the whole scalar.
+  const first = lines.find((l) => l.trim()) ?? "";
+  return (/^ /.test(first) ? "|2\n" : "|\n") + lines.map((line) => (line ? `  ${line}` : "")).join("\n") + "\n";
 }
 
 /** Where, in TEXT, the value of PAIR starts (after `key:` and the space) and where it ends. */

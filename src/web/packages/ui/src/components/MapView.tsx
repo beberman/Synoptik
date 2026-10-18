@@ -24,6 +24,23 @@ export default function MapView({
   }, [docs]);
 
   const edges = useMemo(() => edgesOf(docs, all).filter((e) => pos.has(e.from)), [docs, all, pos]);
+  // The chain is everything reached from the selection by following refines
+  // upward (what it answers) and downward (what answers it), never sideways.
+  const { up, down } = useMemo(() => {
+    const reach = (from: "from" | "to", to: "from" | "to") => {
+      const seen = new Set<string>();
+      if (!selectedId || !pos.has(selectedId)) return seen;
+      seen.add(selectedId);
+      const queue = [selectedId];
+      while (queue.length) {
+        const at = queue.pop()!;
+        for (const e of edges) if (e.resolved && e[from] === at && pos.has(e[to]) && !seen.has(e[to])) { seen.add(e[to]); queue.push(e[to]); }
+      }
+      return seen;
+    };
+    return { up: reach("from", "to"), down: reach("to", "from") };
+  }, [edges, pos, selectedId]);
+  const inChain = (k: string) => up.has(k) || down.has(k);
   const unresolved = new Set(edges.filter((e) => !e.resolved).map((e) => e.from));
   const multi = new Set(docs.map((d) => d.repo)).size > 1;
 
@@ -47,7 +64,7 @@ export default function MapView({
             </marker>
           </defs>
           {edges.filter((e) => e.resolved && pos.has(e.to)).map((e) => {
-            const hot = selectedId === e.from || selectedId === e.to;
+            const hot = (up.has(e.from) && up.has(e.to)) || (down.has(e.from) && down.has(e.to));
             return (
               <path
                 key={e.from + e.to}
@@ -71,7 +88,7 @@ export default function MapView({
           const p = pos.get(key(d))!;
           return (
             <div key={key(d)} className="absolute" style={{ left: p.x, top: p.y, width: W, height: H }}>
-              <DocCard doc={d} showRepo={multi} selected={key(d) === selectedId} onClick={() => onSelect(key(d))} />
+              <DocCard doc={d} showRepo={multi} selected={key(d) === selectedId} related={inChain(key(d))} dim={!!selectedId && !inChain(key(d))} onClick={() => onSelect(key(d))} />
               {unresolved.has(key(d)) && (
                 <span className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white" title="Has a reference that resolves to nothing">
                   <AlertTriangle size={12} />

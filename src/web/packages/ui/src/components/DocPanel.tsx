@@ -1,18 +1,19 @@
 import { useMemo, useState } from "react";
 import type { Client, operations } from "@synoptik/client";
-import { ArrowRight, X, ListChecks } from "lucide-react";
+import { ArrowRight, X, ListChecks, Maximize2, Minimize2 } from "lucide-react";
 import Editor from "./Editor";
 import DocCard, { TypeIcon } from "./DocCard";
 import { metaOf, indexByKey, key, refKey } from "../data";
 import type { Doc } from "../types";
 
 export default function DocPanel({
-  client, ops, doc, all, onClose, onSelect, toast, reload,
+  client, ops, doc, all, onClose, wide, onWide, onSelect, toast, reload,
 }: {
-  client: Client; ops: ReturnType<typeof operations>; doc: Doc; all: Doc[]; onClose: () => void;
+  client: Client; ops: ReturnType<typeof operations>; doc: Doc; all: Doc[]; onClose: () => void; wide: boolean; onWide: () => void;
   onSelect: (id: string) => void; toast: (m: string) => void; reload: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<"edit" | "relations">("edit");
+  const [metaSlot, setMetaSlot] = useState<HTMLElement | null>(null);
   const [dry, setDry] = useState<string | null>(null);
   const byKey = useMemo(() => indexByKey(all), [all]);
   const refinedBy = all.filter((d) => d.refines.some((r) => refKey(r, d.repo) === key(doc)));
@@ -33,7 +34,11 @@ export default function DocPanel({
         <div className="min-w-0 flex-1">
           <div className="font-mono text-xs text-mute">{doc.repo} · {doc.id} · {metaOf(doc.type).label} · {doc.path}</div>
           <div className="truncate text-sm font-semibold" title={doc.title}>{doc.title}</div>
+          <div ref={setMetaSlot} />
         </div>
+        <button className="btn hidden md:inline-flex" onClick={onWide} aria-label={wide ? "Show the document map" : "Hide the document map"} title={wide ? "Show the document map" : "Hide the document map"}>
+          {wide ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
         <button className="btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
       </div>
       <div className="flex gap-1 border-b border-line px-2 pt-2">
@@ -48,7 +53,7 @@ export default function DocPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "edit" ? (
-          <Editor ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
+          <Editor wide={wide} metaSlot={tab === "edit" ? metaSlot : null} ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
         ) : (
           <div className="space-y-5 p-4">
             <Group title="Refines" empty="Refines nothing.">

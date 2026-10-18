@@ -251,6 +251,18 @@ body: |
       spike returns the input by construction, so the test S10 adds is that
       every spliced edit parses back to the value entered.
 
+      A summary or body is drawn as an outline (`src/web/packages/ui/src/outline.ts`).
+      Blocks are divided by blank lines. An all-capitals line is a heading and
+      owns the blocks up to the next heading. A block indented deeper than the
+      one before it is that block's child. A block starting `R12`, `D3` or `S2a`
+      shows the label as a badge. Indent and outdent shift every line of a block
+      and its children by two spaces, and move up and down swap whole subtrees.
+      The outline is rebuilt from the text on every change and the blank lines
+      between blocks stay in their positions, so joining an unedited outline
+      returns its text; a test checks that for every summary and body in this
+      tree. A literal block whose first line is indented is written `|2`,
+      because YAML otherwise takes the first line's indent for the whole scalar.
+
   STYLE
 
   D7  `mountInShadowRoot` attaches a shadow root to the container, adds the

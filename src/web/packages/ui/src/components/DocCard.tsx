@@ -32,15 +32,15 @@ export function StatusDot({ status }: { status: string }) {
 }
 
 export default function DocCard({
-  doc, selected, onClick, style, dim, showRepo,
-}: { doc: Doc; selected?: boolean; onClick: () => void; style?: React.CSSProperties; dim?: boolean; showRepo?: boolean }) {
+  doc, selected, related, onClick, style, dim, showRepo,
+}: { doc: Doc; selected?: boolean; related?: boolean; onClick: () => void; style?: React.CSSProperties; dim?: boolean; showRepo?: boolean }) {
   return (
     <button
       onClick={onClick}
       style={style}
       title={doc.title}
       className={`flex min-h-[44px] w-full items-center gap-2.5 rounded-xl border bg-panel p-2 text-left shadow-sm transition hover:border-accent ${
-        selected ? "border-accent ring-2 ring-accent/40" : "border-line"
+        selected ? "border-accent ring-2 ring-accent/40" : related ? "border-accent bg-accent/10" : "border-line"
       } ${dim ? "opacity-50" : ""}`}
     >
       <TypeIcon type={doc.type} />
