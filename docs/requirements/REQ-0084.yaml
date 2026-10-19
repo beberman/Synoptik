@@ -1,0 +1,57 @@
+id: REQ-0084
+title: init's source-comment review leaves no record that anyone read a comment, and nothing compares prose that describes structure against the system edges structure computes
+status: draft
+priority: p3
+date: 2026-10-19
+refines: [REQ-0021]
+affects: []
+importance: Major
+tags: [init, drift, structure, prose, generality, req-0021]
+summary: |
+  REQ-0021 R7 asks that the markdown and the source comments of a prepared
+  repository be reviewed against the index before the first ARCH document is
+  written. Three of its five clauses are met: the markdown is reviewed by
+  `drift`, the disagreement is reported rather than reconciled, and the review
+  feeds the generated document. Two are not. Nothing records that a source
+  comment was read, and nothing checks a prose claim about structure against
+  the edges between systems.
+body: |
+  PRIORITY: P3, 2026-10-19
+
+  The generated ARCH document is correct without either. Both are about what the
+  review would catch, and no repository has been prepared with a wrong claim
+  that this would have found.
+
+  WHAT IS NOT DONE
+
+  1. Source comments. R7 assigns their review to the LLM reading the files, so
+     Synoptik has nothing to implement. But `tools/synoptik-init.sh` prints an
+     instruction after everything else has run, and no artifact records that a
+     comment was read. Of the requirements in REQ-0021, this is the one whose
+     satisfaction cannot be checked afterwards.
+
+  2. Prose that describes structure. `drift` finds names that did not resolve.
+     That is a missing noun. A document that says "the handler layer calls the
+     cache layer" can have every name resolve while the claimed edge does not
+     exist, and no pass compares the claim with the system edges that
+     `structure` already computes. REQ-0021 recorded this as "probably its own
+     requirement", and scoping it into R7 made the implementation narrower than
+     the sentence.
+
+  WHAT IS WANTED
+
+  R1  A claim in prose that one named system or layer calls, imports or depends
+      on another is compared with the edges `structure` reports between those
+      systems. A claim with no matching edge is reported as a candidate, as
+      `drift` reports one, and is never rewritten or removed.
+
+  R2  Where init asks an LLM to read source comments, something records that it
+      did: which files, and when. The record is a file in the prepared tree, so
+      a later `check` can say a review was or was not made.
+
+  OPEN QUESTIONS
+
+  - How a prose claim about structure is recognised. A phrase pattern misses
+    most of them. An LLM pass finds them and is not repeatable.
+  - Whether R2's record belongs in `.synoptik/manifest.yaml` beside what init
+    wrote, or in its own file.
