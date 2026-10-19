@@ -11,6 +11,7 @@ import Workspace from "./components/Workspace";
 import TerminalPanel, { type OpenTerminal } from "./components/Terminal";
 import { WsContext } from "./context";
 import { distinct, isCompleted, key, matches, widen } from "./data";
+import TokenBanner from "./components/TokenBanner";
 import { loadUiState, useServerEvents, useUiState, useWorkspaceData, type UiState } from "./state";
 import type { Doc, Filters } from "./types";
 
@@ -22,16 +23,16 @@ type Panel = "agents" | "workspace" | null;
  * default: inside a host page (the CloudCLI plugin) the host owns the history.
  */
 export default function App({ client, history = false }: { client: Client; history?: boolean }) {
-  const { ops, docs, repos, error, loaded, damaged, reload } = useWorkspaceData(client);
+  const { ops, docs, repos, error, unauthorized, loaded, damaged, reload } = useWorkspaceData(client);
   const [saved, setSaved] = useState<UiState | null>(null);
   useEffect(() => { void loadUiState(client).then(setSaved); }, [client]);
   if (!saved || !loaded) return <div className="p-6 text-sm text-mute">Loading…</div>;
-  return <Shell client={client} ops={ops} docs={docs} repos={repos} error={error} damaged={damaged} reload={reload} saved={saved} history={history} />;
+  return <Shell client={client} ops={ops} docs={docs} repos={repos} error={error} unauthorized={unauthorized} damaged={damaged} reload={reload} saved={saved} history={history} />;
 }
 
-function Shell({ client, ops, docs, repos, error, damaged, reload, saved, history }: {
+function Shell({ client, ops, docs, repos, error, unauthorized, damaged, reload, saved, history }: {
   client: Client; ops: ReturnType<typeof useWorkspaceData>["ops"]; docs: Doc[]; repos: ReturnType<typeof useWorkspaceData>["repos"];
-  error: string | null; damaged: string | null; reload: () => Promise<void>; saved: UiState; history: boolean;
+  error: string | null; unauthorized: boolean; damaged: string | null; reload: () => Promise<void>; saved: UiState; history: boolean;
 }) {
   const [filters, setFilters] = useState<Filters>(saved.filters ? { ...EMPTY, ...saved.filters } : { ...EMPTY, types: ["REQ"], widen: 1 });
   const [selected, setSelected] = useState<string | null>(saved.selected ?? null);
@@ -176,7 +177,9 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
         )}
         <button className="btn" onClick={() => setDark(!dark)} aria-label="Toggle theme">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
       </header>
-      {error && <div role="alert" className="bg-red-500/15 px-3 py-1.5 text-center text-xs font-medium text-red-600 dark:text-red-400">The service did not answer: {error}</div>}
+      {error && (unauthorized
+        ? <TokenBanner message={error} />
+        : <div role="alert" className="bg-red-500/15 px-3 py-1.5 text-center text-xs font-medium text-red-600 dark:text-red-400">The service did not answer: {error}</div>)}
       {damaged && <div role="alert" className="bg-amber-500/20 px-3 py-1.5 text-center text-xs font-medium text-amber-700 dark:text-amber-400">~/.synoptik/web.json does not parse ({damaged}). Workspace changes are not saved until it is fixed or deleted.</div>}
 
       <div className="flex min-h-0 flex-1">

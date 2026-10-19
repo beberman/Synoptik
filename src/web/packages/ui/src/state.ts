@@ -18,6 +18,8 @@ export function useWorkspaceData(client: Client) {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [repos, setRepos] = useState<Repo[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // The server answered 401: it has a token and this browser sent none, or the wrong one.
+  const [unauthorized, setUnauthorized] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [damaged, setDamaged] = useState<string | null>(null);
 
@@ -43,9 +45,9 @@ export function useWorkspaceData(client: Client) {
         .map((r) => ({ name: basename(r.path), path: r.path, commit: "", documents: 0, state: "paused" as const, missing: r.missing }));
       setRepos([...live, ...absent]);
       setDamaged(workspace.damaged?.reason ?? null);
-      setError(null);
+      setError(null); setUnauthorized(false);
     } catch (e: any) {
-      setError(e?.message ?? String(e));
+      setError(e?.message ?? String(e)); setUnauthorized(e?.status === 401);
     } finally {
       setLoaded(true);
     }
@@ -59,7 +61,7 @@ export function useWorkspaceData(client: Client) {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [reload]);
 
-  return { ops, docs, repos, error, loaded, damaged, reload };
+  return { ops, docs, repos, error, unauthorized, loaded, damaged, reload };
 }
 
 export interface UiState {
