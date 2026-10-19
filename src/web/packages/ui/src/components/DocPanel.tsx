@@ -17,6 +17,9 @@ export default function DocPanel({
   const [tab, setTab] = useState<"edit" | "relations">("edit");
   const [metaSlot, setMetaSlot] = useState<HTMLElement | null>(null);
   const [dry, setDry] = useState<string | null>(null);
+  // A name clicked in the check_document column; `n` makes a second click on the same name open it again.
+  const [reveal, setReveal] = useState<{ name: string; n: number } | null>(null);
+  const showCode = (name: string) => { setTab("relations"); setReveal((r) => ({ name, n: (r?.n ?? 0) + 1 })); };
   const byKey = useMemo(() => indexByKey(all), [all]);
   const refinedBy = all.filter((d) => d.refines.some((r) => refKey(r, d.repo) === key(doc)));
 
@@ -56,9 +59,11 @@ export default function DocPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "edit" ? (
-          <Editor client={client} wide={wide} metaSlot={tab === "edit" ? metaSlot : null} ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
-        ) : (
+        {/* The editor stays mounted behind the other tab, so an unsaved edit survives a look at the relationships. */}
+        <div className={tab === "edit" ? "contents" : "hidden"}>
+          <Editor client={client} wide={wide} onSelect={onSelect} onShowCode={showCode} metaSlot={tab === "edit" ? metaSlot : null} ops={ops} doc={doc} all={all} reload={reload} toast={toast} />
+        </div>
+        {tab !== "edit" && (
           <div className="space-y-5 p-4">
             <Group title="Refines" empty="Refines nothing.">
               {doc.refines.map((r) => byKey.has(refKey(r, doc.repo))
@@ -71,7 +76,7 @@ export default function DocPanel({
             <Group title="Affects (code)" empty="Names no code.">
               {doc.affects.map((a) => byKey.has(refKey(a, doc.repo))
                 ? <DocCard key={a} showRepo doc={byKey.get(refKey(a, doc.repo))!} onClick={() => onSelect(refKey(a, doc.repo))} />
-                : <AffectedCode key={a} ops={ops} repo={doc.repo} name={a} />)}
+                : <AffectedCode key={a} ops={ops} repo={doc.repo} name={a} reveal={reveal} />)}
             </Group>
           </div>
         )}

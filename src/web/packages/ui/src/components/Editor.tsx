@@ -17,8 +17,8 @@ type Ops = ReturnType<typeof operations>;
 type Loaded = { text: string; version: string };
 
 export default function Editor({
-  client, ops, doc, all, reload, toast, wide, metaSlot,
-}: { client: Client; wide?: boolean; metaSlot?: HTMLElement | null; ops: Ops; doc: Doc; all: Doc[]; reload: () => Promise<void>; toast: (m: string) => void }) {
+  client, ops, doc, all, reload, toast, wide, metaSlot, onSelect, onShowCode,
+}: { client: Client; wide?: boolean; onSelect?: (key: string) => void; onShowCode?: (name: string) => void; metaSlot?: HTMLElement | null; ops: Ops; doc: Doc; all: Doc[]; reload: () => Promise<void>; toast: (m: string) => void }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [draft, setDraft] = useState("");
   const [past, setPast] = useState<string[]>([]);
@@ -222,6 +222,26 @@ export default function Editor({
     ref: r.name, kind: r.field, ok: r.status === "resolved" || r.status === "self", detail: r.status,
   }));
   const problems = refChecks.filter((c) => !c.ok).length;
+  // A reference that resolved is a link. A document opens in the browser; an
+  // `affects` name that is not a document opens its definition in the
+  // Relationships tab.
+  const goTo = (target: string) => {
+    if (dirty) { toast("Save or undo your edits before opening another document."); return; }
+    onSelect?.(target);
+  };
+  const refLink = (c: { kind: string; ref: string; ok: boolean }) => {
+    const mono = "font-mono";
+    if (!c.ok) return <span className={mono}>{c.ref}</span>;
+    const target = refKey(c.ref, doc.repo);
+    const cls = `${mono} min-h-[44px] break-all text-left text-accent underline decoration-dotted underline-offset-2 xl:min-h-0`;
+    if (byKey.has(target)) {
+      return onSelect ? <button className={cls} onClick={() => goTo(target)} title={`Open ${c.ref}`}>{c.ref}</button> : <span className={mono}>{c.ref}</span>;
+    }
+    if (c.kind === "affects" && onShowCode) {
+      return <button className={cls} onClick={() => onShowCode(c.ref)} title="Show the definition in Relationships">{c.ref}</button>;
+    }
+    return <span className={mono}>{c.ref}</span>;
+  };
   const refinesOk = (r: string) => {
     const found = check?.references?.find((x) => x.field === "refines" && x.name === r);
     return found ? found.status === "resolved" || found.status === "self" : resolves(r);
@@ -305,7 +325,7 @@ export default function Editor({
                 <li key={i} className={`${wide ? "text-sm" : "text-xs"}`}>
                   <div className="flex items-start gap-1.5">
                     {c.ok ? <Check size={14} className="mt-0.5 shrink-0 text-emerald-500" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-500" />}
-                    <span className="min-w-0 break-words"><span className="text-mute">{c.kind}</span> <span className="font-mono">{c.ref}</span>{!c.ok && " resolves to nothing"}</span>
+                    <span className="min-w-0 break-words"><span className="text-mute">{c.kind}</span> {refLink(c)}{!c.ok && " resolves to nothing"}</span>
                   </div>
                   {!c.ok && (
                     <div className="ml-5 mt-1 flex flex-col items-start gap-1">
