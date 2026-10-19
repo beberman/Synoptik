@@ -10,28 +10,23 @@ affects: [handle-request, "*route-prefix*"]
 importance: Major
 tags: [ui, web, explorer, editor, create, responsive, mobile, css, shadow-dom, theme, react, agents, adapter, cloudcli, plugin, rest, des-0006, dec-0001]
 summary: |
-  Synoptik answers through `tools/synoptik.sh`, REST under `/v1/` and MCP at
-  `/mcp` (REQ-0008). A person reading the documents follows `refines:` and
-  `affects:` by running `describe` and `impact` and reading the output. Editing
-  a document means opening a YAML file, then running `check_document` to learn
-  whether it resolves. Starting an agent on a task, and seeing what it is doing,
-  happens in a terminal Synoptik does not know about.
-
   This asks for a browser UI over the existing REST routes with two parts: the
   documents, their relationships and an editor, built as React components that
   run standalone and inside CloudCLI as a plugin; and agent launch and status,
   which CloudCLI already provides and which Synoptik reaches through an
   interface other tools can implement. CloudCLI has no concept of a document,
   so the first part is what it lacks.
+
+  The lisp knowledge engine for Synoptik will not provide agent management. This is done separately through a different node process that warps the LLM apis and will be compatible with ClaudeCLI
 body: |
   PRIORITY: P2, 2026-10-17
 
-  Impact is that every question the index can answer is reachable only by
-  someone who already knows the command vocabulary. Probability is every use.
-
   Sequence: REQ-0008 is the surface this sits on. REQ-0021 R8 says an agent in a
   prepared worktree reaches Synoptik through the service; the agent half of this
-  is the other direction, a person reaching agents from the service.
+  is the other direction, a person reaching agents from the service. REQ-0081
+  refines this one: accounts, pairing a host to a person, and a terminal with
+  an agent in it. The agent half here serves more than one person only once
+  that exists.
 
   WHAT IS WANTED
 
@@ -202,6 +197,60 @@ body: |
       with the required fields present and empty sections to fill in. The author
       may name the documents it refines, chosen from the explorer's list.
 
+  R18 Changes made outside the editor. A document open in the editor is read
+      again when the service reports a new reading of it, pushed to the browser
+      and not asked for, and every few seconds while the page is in view if the
+      push is not connected. When the file changed
+      and the editor holds no unsaved edit, the new text replaces the old, a
+      notice says the file was changed outside the editor, and the person can
+      see the difference and go back to the text from before. When the editor
+      holds unsaved edits they are never replaced: the person is shown both
+      texts and chooses, as for a refused save. The editor can also show what
+      differs from the last commit and go back to it, which the Synoptik
+      service answers from git, because the Node server does not read files.
+
+  R19 Asking an agent. From a document, and from each reference that resolves to
+      nothing, the person can ask an agent to fix it. The UI writes the task,
+      naming the file, the references and what the index found, and the person
+      reads and edits it before it is sent. The agent edits the file in the
+      checkout the service watches. Several agents at once will each need a
+      worktree of their own and are not part of this requirement.
+
+  R20 Suggested fixes. For a reference that resolves to nothing, the UI offers
+      the entities the index holds under the name the reference ends in, as one
+      action that replaces the reference. Only the characters of that entry
+      change: a list written a name to a line stays that way. With no unsaved
+      edits the replacement is saved at once and the check runs again on the
+      text written; otherwise it is made in the editor and saved with the
+      rest. A name defined nowhere is reported as that, and is not guessed.
+
+  R21 An agent host. Agents run on the machine that holds the files, because
+      one that edits a file needs the file. A small program there, the agent
+      host, starts Claude Code, holds the model credentials in its own
+      environment and answers the web server over HTTP with a bearer token it
+      requires on every request. It offers the adapter interface of R8 to R10:
+      list, launch, stop, status, a stream of progress and approval where the
+      tool can ask. The web server reaches it through one adapter and never
+      holds a credential or reads a file. The host runs a session only in a
+      repository on its own list, one session at a time in each, with a spending
+      limit and a permission mode that lets it edit and nothing wider. CloudCLI
+      stays a second adapter behind the same interface, so either, both or
+      neither can be configured. Which person a host belongs to, and how the
+      web server knows who is asking, is REQ-0081.
+
+  R22 Replaced by REQ-0081 R7: the person signs in to Claude in a terminal on
+      the host, so the code relay below is not built. The text is kept as the
+      record of what was proposed.
+      Signing in from the page (not yet built). The person with no shell on the
+      host's machine can sign in to Claude from the web page. The host starts
+      the tool's own sign-in, hands the page the address it prints, and takes
+      back the one-time code the person copies from Anthropic's page. The web
+      server forwards both and keeps neither. The credential the sign-in
+      produces is written by the tool on the host's disk and is never sent
+      anywhere. Until this exists, signing in is `claude auth login` or
+      `ANTHROPIC_API_KEY` on the host, done once when the repositories are
+      cloned there.
+
   ACCEPTANCE
 
   Open the standalone UI against the running service. Filter to requirements
@@ -238,6 +287,22 @@ body: |
   CloudCLI adapter configured on the standalone shell, launch a session, watch
   its status move from working to waiting or finished, and stop another.
 
+  Open a document, and from a terminal change a line of its file. See the
+  editor take the new text, say so, show the changed lines, and go back to the
+  text from before. Do the same while holding an unsaved edit and see the edit
+  kept and both texts offered. Open a decision whose `affects:` names a function
+  that has since moved, see the file it is in now offered, choose it, and see
+  only that entry change on disk and the check report it resolved. Ask an agent
+  to fix an unresolved reference and read the task before it is sent.
+
+  Start the agent host on this machine with one repository, and have the web
+  server reach it with the token. Ask an agent to fix an unresolved reference
+  and see the session listed as working, the file change arrive in the editor,
+  and the session finish. Start a second session in the same repository and see
+  it refused. Ask for a repository that is not on the host's list and see it
+  refused. Stop a running session and see it stop. Call the host without its
+  token and see it refused.
+
   OPEN QUESTIONS
 
   - Whether a CloudCLI plugin may be MIT-licensed. CloudCLI is
@@ -252,18 +317,23 @@ body: |
     which can run any code the repository holds. It must therefore build the
     components from a published package or a pinned source, and the build
     step is part of what a user trusts.
-  - What CloudCLI's REST API exposes for launching and stopping a session. The
-    README lists the API as present and names no routes. R10 is bounded by
-    this, and the plugin route is not.
-  - Whether Tailwind builds into a shadow root as DEC-0011 requires. Its
-    `rem` sizes follow the host's root font size, and Tailwind 4's `@property`
-    rules are reported not to apply inside a shadow root. A spike that mounts a
-    styled page into a shadow root, with the plugin starter's build, settles the
-    major version before components are written.
-  - How a plugin tab appears on a phone. CloudCLI is responsive and installable
-    as a PWA, with a bottom bar for Chat, Files, Git and Settings. Its mobile
-    page does not mention plugins, so whether a plugin tab is reachable there,
-    and at what width it renders, is not established. R13 depends on it.
+  - CloudCLI's REST API (read from its source, 2026-10-17) lists sessions
+    through `GET /api/projects` with a JWT and starts a run through
+    `POST /api/agent` with an API key. It has no stop route and no
+    running-state route; a run's state is on its WebSocket, which is not
+    documented. R10 therefore holds for CloudCLI as list and launch, with every
+    session's status `unknown`, and stop, status and approve unreported. Not run
+    against a live CloudCLI.
+  - Tailwind in a shadow root is settled by spike S1 (DEC-0011): Tailwind 3
+    works, Tailwind 4 draws no shadows, rings or gradients there, and `rem` is
+    rewritten to `px` in the plugin build.
+  - A CloudCLI 1.37.5 plugin tab is reachable on a 360 px phone once a project
+    is open: the tab bar shows the plugin's icon at 34 by 32 px, and the plugin
+    renders at the full 360 px with no horizontal scroll. CloudCLI's own tab
+    buttons are the same size, so R13's 44 px does not hold for the tab button,
+    which CloudCLI draws. The loader installs from a git clone of a repository
+    whose root holds `manifest.json`, and accepts only `https://` or `git@`
+    URLs, so a subdirectory of this repository cannot be a plugin.
   - Cross-repository links wait on REQ-0073, which is a draft. Until it lands,
     a reference such as `@game-server/REQ-0001` is unresolved, and the map shows
     links inside each repository only.
@@ -273,11 +343,8 @@ body: |
     over TLS or a tunnel the user provides, because plain HTTP sends the token
     in the clear. Which of those the project documents and supports is not
     settled.
-  - Whether the native adapter's source is hook events, transcript files, or
-    only the service's own request log, and which of these tells waiting from
-    idle.
-  - Whether the editor saves through a new REST write route or through the
-    `complete`/`set-status` path extended. No route today writes arbitrary
-    document text.
+  - The native adapter has no source. The retrieval log's records name no
+    session, so it lists none and reports no status (DES-0057 D9). Hook events
+    or transcript files would be needed, and neither is read.
   - Authentication for a UI on a listener that binds 127.0.0.1 by default and
     that SECURITY.md already notes serves every local user on a shared machine.
