@@ -12,7 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
-    "typecheck": "tsc -b packages/client packages/agents packages/server",
+    "typecheck": "tsc -b packages/client packages/agents packages/server packages/agent-host",
     "e2e": "node e2e/run.mjs"
   },
   "devDependencies": {

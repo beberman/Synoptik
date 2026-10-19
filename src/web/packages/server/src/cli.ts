@@ -10,11 +10,12 @@
 //   SYNOPTIK_UI_STATIC  the directory served   default apps/standalone/dist
 //   SYNOPTIK_WEB_HOME   where web.json lives   default ~/.synoptik
 //   SYNOPTIK_CLOUDCLI_URL / _TOKEN / _API_KEY   turn on the CloudCLI agent adapter
+//   SYNOPTIK_AGENT_HOST_URL / _TOKEN            turn on the agent host adapter (DES-0057 D20)
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { createHandler, restoreWorkspace } from "./handler.js";
 import { startListener } from "./listener.js";
-import { CloudCliAdapter, NativeAdapter, type AgentController } from "@synoptik/agents";
+import { CloudCliAdapter, HostAdapter, NativeAdapter, type AgentController } from "@synoptik/agents";
 import { Stores } from "./store.js";
 import { ChangeFeed } from "./changes.js";
 
@@ -34,6 +35,11 @@ if (process.env.SYNOPTIK_CLOUDCLI_URL) {
     token: process.env.SYNOPTIK_CLOUDCLI_TOKEN || undefined,
     apiKey: process.env.SYNOPTIK_CLOUDCLI_API_KEY || undefined,
   }));
+}
+if (process.env.SYNOPTIK_AGENT_HOST_URL) {
+  const hostToken = process.env.SYNOPTIK_AGENT_HOST_TOKEN;
+  if (!hostToken) { console.error("SYNOPTIK_AGENT_HOST_URL is set without SYNOPTIK_AGENT_HOST_TOKEN."); process.exit(1); }
+  adapters.push(new HostAdapter({ baseUrl: process.env.SYNOPTIK_AGENT_HOST_URL, token: hostToken }));
 }
 try {
   const server = await startListener({ host, port, token, staticDir, handler: createHandler({ serviceUrl, token, stores, adapters, subscribe: (listener) => feed.subscribe(listener) }) });
