@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import type { Client, operations } from "@synoptik/client";
-import { ArrowRight, X, ListChecks, Maximize2, Minimize2 } from "lucide-react";
+import { X, ListChecks, Maximize2, Minimize2 } from "lucide-react";
 import Editor from "./Editor";
 import Fold from "./Fold";
 import DocCard, { TypeIcon } from "./DocCard";
+import AffectedCode from "./AffectedCode";
 import { metaOf, indexByKey, key, refKey } from "../data";
 import type { Doc } from "../types";
 
@@ -68,7 +69,9 @@ export default function DocPanel({
               {refinedBy.map((d) => <DocCard key={key(d)} showRepo doc={d} onClick={() => onSelect(key(d))} />)}
             </Group>
             <Group title="Affects (code)" empty="Names no code.">
-              {doc.affects.map((a) => <div key={a} className="flex items-center gap-2 rounded-lg bg-line/30 px-2 py-1.5 font-mono text-xs"><ArrowRight size={12} />{a}</div>)}
+              {doc.affects.map((a) => byKey.has(refKey(a, doc.repo))
+                ? <DocCard key={a} showRepo doc={byKey.get(refKey(a, doc.repo))!} onClick={() => onSelect(refKey(a, doc.repo))} />
+                : <AffectedCode key={a} ops={ops} repo={doc.repo} name={a} />)}
             </Group>
           </div>
         )}
