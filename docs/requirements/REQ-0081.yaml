@@ -1,0 +1,162 @@
+id: REQ-0081
+title: More than one person signs in to the web UI, and each opens a terminal
+  running an agent on the machine that holds the files, as their own account
+  there
+status: draft
+priority: p2
+date: 2026-10-18
+refines: [REQ-0080]
+importance: Major
+tags: [ui, web, agents, login, authentication, sessions, terminal, pairing, agent-host, credentials, git, security]
+summary: |
+  REQ-0080 makes the web page the place to read documents, edit them, start
+  agents and inspect what changed. The web server checks one shared bearer
+  token, `SYNOPTIK_UI_TOKEN`, or answers on loopback alone. That token cannot
+  tell one person from another. So the server cannot decide whose agent host a
+  launch goes to, whose name a commit carries, or whose Claude account pays for
+  a run. A browser also cannot send it on an `EventSource`, and holding it in
+  page script exposes it to any script injected into the page.
+
+  This asks for three things. People sign in to the web server with accounts
+  of their own. Each person's agent host is paired to their account and runs
+  as their user on the machine with the files. From the page a person opens a
+  terminal there, with an agent running in one of their repositories. The
+  agent's model login and the git credentials stay on that machine. The web
+  server holds identities and host tokens, and nothing that signs in to
+  Anthropic or to a git remote.
+body: |
+  PRIORITY: P2, 2026-10-18
+
+  Without it, the agent half of REQ-0080 works only for one person on one
+  machine. Any second person shares the first person's Claude account, git
+  identity and file permissions. Probability is every install with more than
+  one user, and every install where the browser is not on the machine with
+  the files.
+
+  Scope: this is for more than one user. One person on the machine with the
+  files needs none of it. REQ-0080's shared token guards the web server, and
+  the Claude login already made in an ordinary terminal on that machine is
+  what the agent host's `claude` uses. REQ-0080 is built and accepted that
+  way first.
+
+  Sequence: after REQ-0080. REQ-0080 R21 is the agent host this extends. R22
+  there, signing in to Claude from the page, is replaced by R7 here.
+  Implementation is on the branch `req-0081-impl`.
+
+  WHAT IS WANTED
+
+  R1  Accounts. A person signs in to the web server and gets a stable user id,
+      a display name and the name and email their commits carry. Identity comes
+      through one interface with more than one source. Local accounts come
+      first: a file in `~/.synoptik/` holding salted, slow password hashes,
+      never the passwords. Two sources are allowed later: a proxy in front that
+      signs people in and passes an identity header, and sign-in through the
+      git host (GitHub or GitLab). A proxy header is trusted only when the
+      server is configured for that proxy and the request came from it.
+
+  R2  The session. After signing in, the browser holds an `HttpOnly`, `Secure`,
+      `SameSite=Strict` cookie, and page script never sees a token. Every
+      request that writes also passes the Origin check the server makes today.
+      Off loopback, the server refuses to start without HTTPS. Sessions expire,
+      and signing out ends them. The shared `SYNOPTIK_UI_TOKEN` remains for
+      scripts and the CloudCLI plugin, and a person's session never uses it.
+
+  R3  What a person may do. Each account has a set of repositories and, for
+      each one, one of three levels: read, edit, or run agents. The server
+      checks the level on every route, not only in the page. A person sees
+      only their own agent sessions and terminals.
+
+  R4  Pairing a host. A signed-in person asks the page for a pairing code. The
+      code expires after a few minutes and works once. On the machine with the
+      files, under their own OS account, they give the code to the agent host.
+      The host trades it for a long-lived token bound to that person, and the
+      server keeps only a hash of that token. The host connects out to the web
+      server, so the machine with the files opens no port. A host takes work
+      only for the person it is paired to, and the server sends a person's
+      work only to their own hosts.
+
+  R5  The terminal. From the page, a person with the run-agents level opens a
+      terminal on one of their paired hosts, in a repository on that host's
+      list. It starts `claude` interactively in that repository. Keystrokes
+      and output pass through the web server unchanged and are not stored. The
+      process runs as the OS user the host runs as, so it can reach exactly
+      the files that user can reach.
+
+  R6  Detach and reattach. Closing the page, losing the network, or the web
+      server restarting does not end the terminal's process. The person can
+      return to it from the page and see recent output. The process ends only
+      when it exits, when the person ends it, or when the host is unpaired.
+
+  R7  Signing in to Claude. The person signs in to Claude in the terminal with
+      the tool's own login, or the host's environment provides an API key. The
+      credential is written on the host's disk by the tool. It never passes
+      through the web server, and the web server never stores it. A host
+      started by several people's accounts would share one Claude account
+      between them, which the host does not allow: one host belongs to one
+      person.
+
+  R8  Approvals. In a terminal the person answers the agent's permission
+      prompts themselves. The headless runs of REQ-0080 R21 keep their rule:
+      an action that would ask is refused.
+
+  R9  git. Commits and pushes happen on the host, with the person's git
+      configuration and credentials there. The web server never holds a git
+      credential. A commit from the page is an explicit action by the person,
+      and a push is a separate action after it.
+
+  R10 Revocation. Unpairing a host invalidates its token and ends its
+      terminals and agent sessions. Disabling an account ends its sessions and
+      unpairs its hosts. Both take effect without restarting the server.
+
+  R11 A record. The server keeps a log of sign-ins, failed sign-ins, pairings,
+      unpairings and terminals opened and closed, each with the user id, the
+      host and the time. The log never holds terminal contents or any
+      credential.
+
+  ACCEPTANCE
+
+  Create two local accounts. Sign in as the first, and confirm the browser
+  holds a cookie that page script cannot read. Confirm the change feed still
+  streams. Sign in as the second in another browser and see neither the
+  first's sessions nor their hosts.
+
+  Start the web server on a non-loopback address without HTTPS and see it
+  refuse. Send a write from another origin with a valid cookie and see it
+  refused.
+
+  As the first person, ask for a pairing code and pair a host running as that
+  person's OS user. Try the code a second time and see it refused. Confirm the
+  host listens on no port. Open a terminal in a repository on the host's list
+  and see `claude` start there. Run `claude auth login` in it, and confirm
+  nothing the login wrote appears in the web server's files or log. Ask the
+  agent to edit a file, approve the prompt, and see the change arrive in the
+  editor.
+
+  Close the page and open it again, and see the same terminal with its recent
+  output. Restart the web server and see the same. As the second person, try
+  to open a terminal on the first person's host and see it refused. Give the
+  second person read on the repository and confirm they can read its
+  documents but cannot open a terminal or start an agent.
+
+  Commit from the page and see the commit carry the first person's name and
+  email. Unpair the host and see its terminal end and its token refused.
+  Read the log and find each of these events with the user and host, and no
+  terminal output.
+
+  OPEN QUESTIONS
+
+  - Whether the terminal may also be a plain shell. An agent with a Bash tool
+    is already close to one, but a shell lets a person run anything their
+    account can run with no agent in between. The answer decides whether a
+    web sign-in must be held to the standard of an SSH login.
+  - Whether interactive terminals and REQ-0080 R21's headless runs share one
+    limit of one agent per repository. Both edit the same checkout until each
+    has a worktree.
+  - Whether a machine shared by several people runs one host per OS user or a
+    privileged host that drops to each user. One host per user needs no
+    privilege; the other starts once per machine.
+  - Second-factor sign-in, and whether it is required whenever a terminal can
+    be opened.
+  - Whether one Claude subscription may serve one person through this page on
+    more than one machine. One person, one account is the reading R7 takes;
+    the current terms should be read before relying on it.
