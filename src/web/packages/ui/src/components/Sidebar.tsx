@@ -3,7 +3,7 @@ import { TYPE_META, TYPE_ORDER, repoColor, tagOptions } from "../data";
 import { useWs } from "../context";
 import type { Doc, Filters } from "../types";
 
-export const EMPTY: Filters = { repos: [], types: [], statuses: [], priority: "", tag: "", text: "", widen: 0 };
+export const EMPTY: Filters = { repos: [], types: [], statuses: [], priority: "", tag: "", text: "", widen: 0, hideCompleted: false };
 
 export default function Sidebar({
   docs, filters, set, counts, repoNames, onClose, recent, onOpen,
@@ -85,6 +85,12 @@ export default function Sidebar({
           </select>
         </label>
       </section>
+
+      <label className="flex min-h-[44px] items-center gap-2 text-sm md:min-h-[32px]">
+        <input type="checkbox" className="h-5 w-5 accent-[rgb(var(--accent))] md:h-4 md:w-4" checked={!!filters.hideCompleted}
+          onChange={(e) => set({ ...filters, hideCompleted: e.target.checked })} />
+        Hide completed documents
+      </label>
 
       <section>
         <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">

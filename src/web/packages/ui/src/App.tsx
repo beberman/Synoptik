@@ -10,7 +10,7 @@ import NewDoc from "./components/NewDoc";
 import Workspace from "./components/Workspace";
 import TerminalPanel, { type OpenTerminal } from "./components/Terminal";
 import { WsContext } from "./context";
-import { distinct, key, matches, widen } from "./data";
+import { distinct, isCompleted, key, matches, widen } from "./data";
 import { loadUiState, useServerEvents, useUiState, useWorkspaceData, type UiState } from "./state";
 import type { Doc, Filters } from "./types";
 
@@ -33,7 +33,7 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
   client: Client; ops: ReturnType<typeof useWorkspaceData>["ops"]; docs: Doc[]; repos: ReturnType<typeof useWorkspaceData>["repos"];
   error: string | null; damaged: string | null; reload: () => Promise<void>; saved: UiState; history: boolean;
 }) {
-  const [filters, setFilters] = useState<Filters>(saved.filters ?? { ...EMPTY, types: ["REQ"], widen: 1 });
+  const [filters, setFilters] = useState<Filters>(saved.filters ? { ...EMPTY, ...saved.filters } : { ...EMPTY, types: ["REQ"], widen: 1 });
   const [selected, setSelected] = useState<string | null>(saved.selected ?? null);
   const [recent, setRecent] = useState<string[]>(saved.recent ?? []);
   const [view, setView] = useState<"map" | "list">(saved.view ?? (window.matchMedia("(max-width: 767px)").matches ? "list" : "map"));
@@ -130,7 +130,8 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
   const { visible, matchedCount } = useMemo(() => {
     const matched = new Set(inWorkspace.filter((d) => matches(d, filters)).map(key));
     const ids = filters.widen ? widen(inWorkspace, matched, filters.widen) : matched;
-    return { visible: inWorkspace.filter((d) => ids.has(key(d))), matchedCount: matched.size };
+    // Widening can reach a completed document through a link, so it is left out here too.
+    return { visible: inWorkspace.filter((d) => ids.has(key(d)) && !(filters.hideCompleted && isCompleted(d))), matchedCount: matched.size };
   }, [inWorkspace, filters]);
 
   const counts = useMemo(() => {

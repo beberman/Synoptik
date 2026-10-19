@@ -31,6 +31,8 @@ export type Filters = {
   tag: string;
   text: string;
   widen: number;
+  /** Leave out documents the repository files under `completed/`. */
+  hideCompleted: boolean;
 };
 
 export type AgentStatus =
