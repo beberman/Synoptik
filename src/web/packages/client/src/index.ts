@@ -152,6 +152,12 @@ export interface CommittedText { repository: string; "doc-id": string; address: 
 export interface WriteResult { address: string; changed: boolean; version: string; check: CheckResult }
 export interface CheckReference { field: string; name: string; status: "resolved" | "unresolved" | "ambiguous" | "self"; target?: string; type?: string; candidates?: string[] }
 export interface CheckResult { path: string; document?: string; type?: string; error?: string; references?: CheckReference[] }
+export interface Described {
+  entity: { id: string; type: string; name: string; location?: string };
+  signature?: string | null;
+  summary?: string | null;
+  source?: { status: string; file?: string; range?: string; "definition-range"?: string; text?: string };
+}
 export interface CreatedDocument { repository: string; "doc-id": string; address: string; text: string; version: string }
 
 const q = (params: Record<string, string | undefined>) => {
@@ -178,6 +184,8 @@ export const operations = (client: Client) => ({
     client("GET", `/api/v1/committed-document${q({ repository, document })}`) as Promise<unknown> as Promise<CommittedText>,
   checkDocument: (repository: string, path: string) =>
     client("GET", `/api/v1/check-document${q({ repository, path })}`) as Promise<unknown> as Promise<CheckResult>,
+  describe: (repository: string, term: string) =>
+    client("GET", `/api/v1/describe${q({ repository, term, source: "true" })}`) as Promise<unknown> as Promise<Described>,
   setStatus: (repository: string, document: string, status: string) =>
     client("POST", "/api/v1/set-status", { repository, document, status }),
 });
