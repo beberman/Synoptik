@@ -81,10 +81,10 @@ export default function TerminalPanel({ client, term, dark, onHide, onEnded, toa
         <span className="hidden truncate text-xs text-mute sm:inline">tmux attach -t {term.name}</span>
         <div className="ml-auto flex gap-1">
           <Fold folded={folded} onFold={onFold} />
-          <button className="btn !min-h-[32px]" onClick={onFull} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen" : "Full screen"}>{full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
-          {state === "closed" && <button className="btn !min-h-[32px]" onClick={() => { setState("connecting"); setAttempt((n) => n + 1); }}><RotateCw size={14} /> Reconnect</button>}
-          <button className="btn !min-h-[32px]" onClick={() => void end()} aria-label="End the conversation" title="End the conversation"><Power size={14} /></button>
-          <button className="btn !min-h-[32px]" onClick={onHide} aria-label="Hide the terminal" title="Hide; the conversation keeps running"><X size={14} /></button>
+          <button className="btn !min-h-[44px] md:!min-h-[32px]" onClick={onFull} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen" : "Full screen"}>{full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+          {state === "closed" && <button className="btn !min-h-[44px] md:!min-h-[32px]" onClick={() => { setState("connecting"); setAttempt((n) => n + 1); }}><RotateCw size={14} /> Reconnect</button>}
+          <button className="btn !min-h-[44px] md:!min-h-[32px]" onClick={() => void end()} aria-label="End the conversation" title="End the conversation"><Power size={14} /></button>
+          <button className="btn !min-h-[44px] md:!min-h-[32px]" onClick={onHide} aria-label="Hide the terminal" title="Hide; the conversation keeps running"><X size={14} /></button>
         </div>
       </div>
       {!folded && state === "closed" && <p className="border-b border-line px-3 py-1 text-xs text-mute">Disconnected. The conversation keeps running in tmux unless it ended; reconnect to return to it.</p>}

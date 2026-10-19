@@ -98,7 +98,7 @@ export default function Agents({
                       <div key={r.path} className="flex items-center gap-2 text-sm">
                         <span className={`h-2 w-2 shrink-0 rounded-full ${live ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"}`} />
                         <span className="min-w-0 flex-1 truncate">{r.name}{live && <span className="text-xs text-mute"> · since {new Date(live.since).toLocaleString()}{live.attached ? ` · ${live.attached} attached` : ""}</span>}</span>
-                        <button className="btn !min-h-[32px]" onClick={() => void openTerminal(a, r.path)}><SquareTerminal size={14} /> {live ? "Return" : "Open terminal"}</button>
+                        <button className="btn !min-h-[44px] md:!min-h-[32px]" onClick={() => void openTerminal(a, r.path)}><SquareTerminal size={14} /> {live ? "Return" : "Open terminal"}</button>
                       </div>
                     );
                   })}
