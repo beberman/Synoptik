@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { Readable } from "node:stream";
+import type { HostHandler } from "./host.js";
 
 function toRequest(message: IncomingMessage, host: string): Request {
   const headers = new Headers();
@@ -12,7 +13,7 @@ function toRequest(message: IncomingMessage, host: string): Request {
   return new Request(`http://${message.headers.host ?? host}${message.url ?? "/"}`, init);
 }
 
-export async function listen(host: string, port: number, handler: (r: Request) => Promise<Response>): Promise<Server> {
+export async function listen(host: string, port: number, handler: ((r: Request) => Promise<Response>) & { upgrade?: HostHandler["upgrade"] }): Promise<Server> {
   const server = createServer(async (message, reply) => {
     try {
       const response = await handler(toRequest(message, host));
@@ -25,6 +26,11 @@ export async function listen(host: string, port: number, handler: (r: Request) =
     } catch (error: any) {
       reply.writeHead(500, { "content-type": "application/json" }).end(JSON.stringify({ name: "INTERNAL", message: String(error?.message ?? error) }));
     }
+  });
+  // A terminal's WebSocket. Without a terminal handler an upgrade is refused.
+  server.on("upgrade", (message, socket, head) => {
+    if (handler.upgrade) handler.upgrade(message, socket, head);
+    else socket.end("HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n");
   });
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(port, host, resolve); });
   return server;

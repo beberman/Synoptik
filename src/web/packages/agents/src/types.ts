@@ -17,14 +17,31 @@ export interface Session {
   provider?: string;
 }
 
-export type Capability = "list" | "launch" | "stop" | "status" | "subscribe" | "approve";
+export type Capability = "list" | "launch" | "stop" | "status" | "subscribe" | "approve" | "terminal";
 
 export interface Capabilities {
   /** The methods this adapter implements. */
   supported: Capability[];
   /** Why a method is missing, for a person reading the panel. */
   notes: Partial<Record<Capability, string>>;
+  /** Whether the tool is signed in, when the adapter can tell. */
+  login?: { loggedIn: boolean; authMethod?: string } | null;
 }
+
+/** An interactive terminal with an agent in it (REQ-0080 R23, DES-0057 D21). */
+export interface Terminal {
+  /** The terminal's id. */
+  name: string;
+  repository: string;
+  since: string;
+  /** Clients attached now, the page's among them. */
+  attached: number;
+}
+
+export interface OpenTerminal { repository: string; message?: string; cols?: number; rows?: number }
+
+/** Where the server's proxy connects for a terminal's bytes. */
+export interface TerminalSocket { url: string; headers: Record<string, string> }
 
 export interface LaunchRequest { repository: string; task: string; provider?: string }
 
@@ -38,6 +55,11 @@ export interface AgentController {
   status(id: string): Promise<Status>;
   subscribe(id: string, on: (status: Status) => void): () => void;
   approve(id: string, requestId: string, allow: boolean): Promise<void>;
+  terminals(): Promise<Terminal[]>;
+  /** The repository's terminal, started if there is none. `started` says which. */
+  openTerminal(request: OpenTerminal): Promise<{ terminal: Terminal; started: boolean }>;
+  closeTerminal(name: string): Promise<void>;
+  terminalSocket(name: string, cols: number, rows: number): TerminalSocket;
 }
 
 export class Unsupported extends Error {
@@ -58,5 +80,9 @@ export abstract class BaseAdapter implements AgentController {
   status(_id: string): Promise<Status> { return Promise.reject(new Unsupported(this.name, "status")); }
   subscribe(_id: string, _on: (status: Status) => void): () => void { throw new Unsupported(this.name, "subscribe"); }
   approve(_id: string, _requestId: string, _allow: boolean): Promise<void> { return Promise.reject(new Unsupported(this.name, "approve")); }
+  terminals(): Promise<Terminal[]> { return Promise.reject(new Unsupported(this.name, "terminal")); }
+  openTerminal(_request: OpenTerminal): Promise<{ terminal: Terminal; started: boolean }> { return Promise.reject(new Unsupported(this.name, "terminal")); }
+  closeTerminal(_name: string): Promise<void> { return Promise.reject(new Unsupported(this.name, "terminal")); }
+  terminalSocket(_name: string, _cols: number, _rows: number): TerminalSocket { throw new Unsupported(this.name, "terminal"); }
 }
 

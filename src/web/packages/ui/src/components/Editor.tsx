@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Code2, History, Redo2, Replace, Save, Undo2, X, AlertTriangle, Bot } from "lucide-react";
+import { Check, Code2, History, MessageSquare, Redo2, Replace, Save, Undo2, X, AlertTriangle, Bot } from "lucide-react";
 import { ConflictError, type Client, type CheckResult, type Suggestion, type operations } from "@synoptik/client";
 import { indexByKey, refKey } from "../data";
 import { useServerEvents } from "../state";
@@ -11,6 +11,7 @@ import Outline from "./Outline";
 import Meta from "./Meta";
 import Changes from "./Changes";
 import AskAgent from "./AskAgent";
+import { useWs } from "../context";
 
 type Ops = ReturnType<typeof operations>;
 type Loaded = { text: string; version: string };
@@ -72,6 +73,14 @@ export default function Editor({
   const fields = useMemo(() => readFields(draft), [draft]);
   const yamlErrors = useMemo(() => parseErrors(draft), [draft]);
   const dirty = loaded !== null && draft !== loaded.text;
+  const { openTerminal } = useWs();
+  // The agent edits the file on disk, so an unsaved edit here would meet its
+  // change as a conflict. Saving first keeps one version of the text.
+  const talk = () => {
+    if (!openTerminal) return;
+    if (dirty) { toast("Save or undo your edits before talking to the agent about this document."); return; }
+    void openTerminal(doc.repo, `I have ${doc.path} open in Synoptik's editor. Read it; I want to talk about it.`);
+  };
 
   // A change made to the file while it is open arrives here: an agent, an editor,
   // a terminal. The server says when the service has read a new text of it; the
@@ -282,6 +291,7 @@ export default function Editor({
           onKeyDown={(e) => { if (e.key === "ArrowLeft") { e.preventDefault(); resize(sideWidth + 24); } if (e.key === "ArrowRight") { e.preventDefault(); resize(sideWidth - 24); } }}
           className="hidden w-2 shrink-0 cursor-col-resize touch-none border-l border-line hover:bg-accent/30 focus:bg-accent/40 focus:outline-none xl:block" />
         <aside style={{ ["--side" as string]: `${sideWidth}px` }} className="shrink-0 overflow-y-auto border-t border-line p-3 text-sm xl:max-h-none xl:w-[var(--side)] xl:border-t-0">
+          {openTerminal && <button className="btn mb-2 w-full" onClick={talk} title="Open Claude Code in this repository, beside the document"><MessageSquare size={16} /> Talk about this document</button>}
           <button className="mb-2 flex min-h-[44px] w-full items-center gap-2 text-left font-semibold xl:min-h-0 xl:cursor-default" onClick={() => setCheckOpen(!checkOpen)}>
             check_document
             <span className={`chip ${problems ? "!border-red-500 text-red-500" : "!border-emerald-500 text-emerald-600"}`}>{problems ? `${problems} unresolved` : "clean"}</span>

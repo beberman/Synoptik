@@ -5,6 +5,16 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc -b" },
-  "bin": { "synoptik-agent-host": "dist/cli.js" }
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "bin": {
+    "synoptik-agent-host": "dist/cli.js"
+  },
+  "devDependencies": {
+    "@types/ws": "8.5.13"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  }
 }

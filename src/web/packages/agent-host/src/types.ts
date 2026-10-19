@@ -38,3 +38,6 @@ export interface RunningAgent {
 export interface Runner {
   start(request: { cwd: string; task: string }, hooks: RunHooks): RunningAgent;
 }
+
+/** Whether the tool is signed in, and how. No other field of the tool's answer is kept. */
+export interface Login { loggedIn: boolean; authMethod?: string }

@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
-import type { Outcome, RunHooks, Runner, RunningAgent } from "./types.js";
+import { execFile, spawn } from "node:child_process";
+import type { Login, Outcome, RunHooks, Runner, RunningAgent } from "./types.js";
 
 export interface ClaudeRunnerConfig {
   /** The program to run. `claude`, found on PATH. */
@@ -103,4 +103,27 @@ function briefInput(input: unknown): string {
   const o = input as Record<string, unknown>;
   const value = o.file_path ?? o.path ?? o.pattern ?? o.command ?? "";
   return typeof value === "string" ? value.slice(0, 120) : "";
+}
+
+/**
+ * `claude auth status --json`, read at most once a minute. Only `loggedIn` and
+ * `authMethod` are kept: the answer also names the account, which the page has
+ * no need of.
+ */
+export function loginReader(command = "claude", every = 60_000): () => Promise<Login | null> {
+  let cached: { at: number; value: Login | null } | null = null;
+  return () => {
+    if (cached && Date.now() - cached.at < every) return Promise.resolve(cached.value);
+    return new Promise((resolve) => {
+      execFile(command, ["auth", "status", "--json"], { encoding: "utf8", timeout: 15_000 }, (_error, stdout) => {
+        let value: Login | null = null;
+        try {
+          const parsed = JSON.parse(stdout);
+          value = { loggedIn: Boolean(parsed.loggedIn), ...(typeof parsed.authMethod === "string" ? { authMethod: parsed.authMethod } : {}) };
+        } catch { value = null; }
+        cached = { at: Date.now(), value };
+        resolve(value);
+      });
+    });
+  };
 }

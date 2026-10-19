@@ -1,4 +1,4 @@
-import { BaseAdapter, type Capabilities, type LaunchRequest, type Session, type Status } from "./types.js";
+import { BaseAdapter, type Capabilities, type LaunchRequest, type OpenTerminal, type Session, type Status, type Terminal, type TerminalSocket } from "./types.js";
 
 export interface HostConfig {
   /** The agent host, for example http://127.0.0.1:4795. */
@@ -63,6 +63,24 @@ export class HostAdapter extends BaseAdapter {
 
   async status(id: string): Promise<Status> {
     return (await this.call<{ session: HostSession }>("GET", `/sessions/${encodeURIComponent(id)}`)).session.status;
+  }
+
+  async terminals(): Promise<Terminal[]> {
+    return (await this.call<{ terminals: Terminal[] }>("GET", "/terminals")).terminals;
+  }
+
+  async openTerminal(request: OpenTerminal): Promise<{ terminal: Terminal; started: boolean }> {
+    return this.call("POST", "/terminals", request);
+  }
+
+  async closeTerminal(name: string): Promise<void> { await this.call("POST", `/terminals/${encodeURIComponent(name)}/close`, {}); }
+
+  terminalSocket(name: string, cols: number, rows: number): TerminalSocket {
+    const url = new URL(`${this.base}/terminals/${encodeURIComponent(name)}/io`);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set("cols", String(cols));
+    url.searchParams.set("rows", String(rows));
+    return { url: url.toString(), headers: this.headers() };
   }
 
   subscribe(id: string, on: (status: Status) => void): () => void {

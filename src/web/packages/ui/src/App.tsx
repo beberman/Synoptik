@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, FileText, Filter, GitBranch, LayoutGrid, List, Moon, Network, Plus, Sun } from "lucide-react";
+import { Bot, FileText, Filter, GitBranch, LayoutGrid, List, Moon, Network, Plus, SquareTerminal, Sun } from "lucide-react";
 import type { Client } from "@synoptik/client";
 import Sidebar, { EMPTY } from "./components/Sidebar";
 import MapView from "./components/MapView";
@@ -8,6 +8,7 @@ import DocPanel from "./components/DocPanel";
 import Agents from "./components/Agents";
 import NewDoc from "./components/NewDoc";
 import Workspace from "./components/Workspace";
+import TerminalPanel, { type OpenTerminal } from "./components/Terminal";
 import { WsContext } from "./context";
 import { distinct, key, matches, widen } from "./data";
 import { loadUiState, useServerEvents, useUiState, useWorkspaceData, type UiState } from "./state";
@@ -42,6 +43,18 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
   const [dark, setDark] = useState(() => saved.dark ?? window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [wide, setWide] = useState(saved.wide ?? false);
   const [message, setMessage] = useState<string | null>(null);
+  const [term, setTerm] = useState<OpenTerminal | null>(null);
+  const [termShown, setTermShown] = useState(false);
+  // A folded section shows only its title lines. The terminal can also take the whole screen.
+  const [folded, setFolded] = useState({ panel: false, doc: false, term: false });
+  const [termFull, setTermFull] = useState(false);
+  const fold = (k: "panel" | "doc" | "term") => setFolded((f) => ({ ...f, [k]: !f[k] }));
+  const [terminalAdapter, setTerminalAdapter] = useState<string | null>(null);
+  useEffect(() => {
+    void (client("GET", "/api/agents") as Promise<unknown> as Promise<{ adapters: { id: string; capabilities: { supported: string[] } }[] }>)
+      .then((a) => setTerminalAdapter(a.adapters.find((x) => x.capabilities.supported.includes("terminal"))?.id ?? null))
+      .catch(() => setTerminalAdapter(null));
+  }, [client]);
 
   // What the back and forward buttons move between: the document open, the side
   // panel, map or list, and the filters. The first entry is the page itself, so
@@ -92,12 +105,25 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
   useUiState(client, { filters, view, dark, selected, recent, wide }, true);
   useEffect(() => { if (selected) setRecent((r) => [selected, ...r.filter((k) => k !== selected)].slice(0, 8)); }, [selected]);
 
+  /** Show TERMINAL, the one an adapter answered for. Opening it hides the panel it was opened from. */
+  const showTerminal = (t: OpenTerminal) => { setTerm(t); setTermShown(true); setPanel(null); setFolded((f) => ({ ...f, term: false })); };
+
   const ws = useMemo(() => ({
     repoNames: repos.map((r) => r.name),
     repoPaths: Object.fromEntries(repos.map((r) => [r.name, r.path])),
     statuses: distinct(docs.map((d) => d.status)),
     priorities: distinct(docs.map((d) => d.priority)),
-  }), [repos, docs]);
+    openTerminal: terminalAdapter ? async (repo: string, text: string) => {
+      const path = repos.find((r) => r.name === repo)?.path;
+      if (!path) { setMessage(`No folder is known for ${repo}.`); return; }
+      try {
+        const answer = (await client("POST", `/api/agents/${terminalAdapter}/terminals`, { repository: path, message: text, cols: 120, rows: 36 })) as unknown as
+          { terminal: { name: string; repository: string }; started: boolean };
+        showTerminal({ adapter: terminalAdapter, name: answer.terminal.name, repository: answer.terminal.repository });
+        if (!answer.started && text) setMessage("A conversation is already running there. Your message is typed at its prompt; press Enter to send it.");
+      } catch (e: any) { setMessage(e?.message ?? String(e)); }
+    } : undefined,
+  }), [repos, docs, terminalAdapter, client]);
   const inWorkspace = docs;
   const repoNames = ws.repoNames;
 
@@ -116,8 +142,9 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
   const doc = inWorkspace.find((d) => key(d) === selected) ?? null;
   const tooBig = view === "map" && visible.length > MAP_LIMIT;
   const multi = new Set(visible.map((d) => d.repo)).size > 1;
-  const sidePanel = doc || panel;
-  const full = wide && !!doc;
+  const terminalOpen = !!term && termShown;
+  const sidePanel = doc || panel || terminalOpen;
+  const full = (wide && !!doc) || (terminalOpen && termFull);
 
   const sidebar = (onClose?: () => void) => (
     <Sidebar docs={inWorkspace} filters={filters} set={setFilters} counts={counts} repoNames={repoNames} onClose={onClose}
@@ -141,6 +168,11 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
         <button className={`btn ${panel === "agents" ? "!border-accent text-accent" : ""}`} onClick={() => setPanel(panel === "agents" ? null : "agents")} aria-label="Agents">
           <Bot size={16} /><span className="hidden sm:inline">Agents</span>
         </button>
+        {term && !termShown && (
+          <button className="btn" onClick={() => setTermShown(true)} aria-label="Show the terminal" title={`Return to the conversation in ${term.repository.replace(/\/$/, "").split("/").pop()}`}>
+            <SquareTerminal size={16} /><span className="hidden sm:inline">Terminal</span>
+          </button>
+        )}
         <button className="btn" onClick={() => setDark(!dark)} aria-label="Toggle theme">{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
       </header>
       {error && <div role="alert" className="bg-red-500/15 px-3 py-1.5 text-center text-xs font-medium text-red-600 dark:text-red-400">The service did not answer: {error}</div>}
@@ -183,17 +215,24 @@ function Shell({ client, ops, docs, repos, error, damaged, reload, saved, histor
         </main>
 
         {sidePanel && (
-          <aside className={`fixed inset-0 z-40 flex flex-col bg-panel md:static md:z-auto md:border-l md:border-line ${full ? "md:flex-1" : "md:w-[min(46vw,640px)]"}`}>
-            {panel && (
-              <div className={doc ? "h-1/3 border-b border-line" : "h-full"}>
+          <aside className={`fixed inset-0 z-40 flex min-w-0 flex-col overflow-hidden bg-panel md:static md:z-auto md:border-l md:border-line ${full ? "md:flex-1" : "md:w-[min(46vw,640px)]"}`}>
+            {panel && !(terminalOpen && termFull) && (
+              <div className={folded.panel ? "shrink-0 border-b border-line" : doc ? "h-1/3 border-b border-line" : terminalOpen ? "h-1/3 border-b border-line" : "h-full"}>
                 {panel === "agents"
-                  ? <Agents client={client} repos={repos} onClose={() => setPanel(null)} toast={setMessage} />
-                  : <Workspace client={client} repos={repos} counts={counts} reload={reload} onClose={() => setPanel(null)} toast={setMessage} />}
+                  ? <Agents client={client} repos={repos} onClose={() => setPanel(null)} toast={setMessage} onTerminal={showTerminal} folded={folded.panel} onFold={() => fold("panel")} />
+                  : <Workspace client={client} repos={repos} counts={counts} reload={reload} onClose={() => setPanel(null)} toast={setMessage} folded={folded.panel} onFold={() => fold("panel")} />}
               </div>
             )}
-            {doc && (
-              <div className="min-h-0 flex-1">
-                <DocPanel key={key(doc)} client={client} ops={ops} doc={doc} all={inWorkspace} onClose={() => setSelected(null)} wide={wide} onWide={() => setWide(!wide)} onSelect={setSelected} toast={setMessage} reload={reload} />
+            {doc && !(terminalOpen && termFull) && (
+              <div className={folded.doc ? "shrink-0" : "min-h-0 flex-1"}>
+                <DocPanel key={key(doc)} client={client} ops={ops} doc={doc} all={inWorkspace} onClose={() => setSelected(null)} wide={wide} onWide={() => setWide(!wide)} onSelect={setSelected} toast={setMessage} reload={reload} folded={folded.doc} onFold={() => fold("doc")} />
+              </div>
+            )}
+            {terminalOpen && (
+              <div className={folded.term ? "shrink-0 border-t border-line" : termFull ? "min-h-0 flex-1" : doc ? "h-1/2 min-h-[240px] border-t border-line" : "min-h-0 flex-1"}>
+                <TerminalPanel key={`${term!.adapter}/${term!.name}`} client={client} term={term!} dark={dark}
+                  onHide={() => { setTermShown(false); setTermFull(false); }} onEnded={() => { setTerm(null); setTermShown(false); setTermFull(false); }} toast={setMessage}
+                  folded={folded.term} onFold={() => fold("term")} full={termFull} onFull={() => setTermFull(!termFull)} />
               </div>
             )}
           </aside>

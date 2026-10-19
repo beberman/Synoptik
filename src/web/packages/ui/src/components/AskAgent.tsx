@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Client } from "@synoptik/client";
-import { Bot, Send, X } from "lucide-react";
+import { Bot, Send, SquareTerminal, X } from "lucide-react";
 import { useWs } from "../context";
 
 interface Adapter { id: string; name: string; capabilities: { supported: string[]; notes: Record<string, string> } }
@@ -17,7 +17,8 @@ export default function AskAgent({ client, repo, task: initial, onClose, toast }
   const [adapters, setAdapters] = useState<Adapter[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const path = useWs().repoPaths[repo];
+  const { repoPaths, openTerminal } = useWs();
+  const path = repoPaths[repo];
 
   useEffect(() => {
     void (client("GET", "/api/agents") as Promise<unknown> as Promise<{ adapters: Adapter[] }>)
@@ -46,6 +47,7 @@ export default function AskAgent({ client, repo, task: initial, onClose, toast }
         {problem && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{problem}</p>}
         <div className="mt-3 flex justify-end gap-2">
           <button className="btn" onClick={onClose}>Cancel</button>
+          {openTerminal && <button className="btn" disabled={!task.trim()} onClick={() => { void openTerminal(repo, task); onClose(); }} title="Talk it through in Claude Code instead of a run nobody watches"><SquareTerminal size={16} /> Open in terminal</button>}
           <button className="btn btn-primary" disabled={!adapter || !task.trim() || sending} onClick={() => void send()}><Send size={16} /> Send{adapter ? ` to ${adapter.name}` : ""}</button>
         </div>
       </div>

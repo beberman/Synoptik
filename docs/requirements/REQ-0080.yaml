@@ -3,7 +3,7 @@ title: A web UI shows the documents and their relationships, edits them in
   place, and manages agents through an adapter interface, because the only
   surfaces today are a console, a REST API and MCP
 status: draft
-priority: p2
+priority: p1
 date: 2026-10-17
 refines: [REQ-0008, REQ-0021]
 affects: [handle-request, "*route-prefix*"]
@@ -251,6 +251,20 @@ body: |
       `ANTHROPIC_API_KEY` on the host, done once when the repositories are
       cloned there.
 
+  R23 A conversation with an agent, in a terminal on the page. The Agents panel
+      lists each agent host with the Claude login it has, and offers a terminal
+      in each repository the host may run agents in. A document offers one
+      action that opens that terminal beside it, with the document named in the
+      first message, so the person can talk to the agent about the document
+      while reading it. The terminal is Claude Code's own interface, so the
+      person answers its permission prompts. It keeps running when the page
+      closes, and opening it again returns to the same conversation. One
+      repository has one terminal, and a headless run is refused while it is
+      open, because both would edit the same checkout. The agent's edits reach
+      the editor through R18. The terminal is opened only from this server's
+      own page. A terminal connection from any other page, or one without the
+      server's token when the server has one, is refused.
+
   ACCEPTANCE
 
   Open the standalone UI against the running service. Filter to requirements
@@ -302,6 +316,17 @@ body: |
   it refused. Ask for a repository that is not on the host's list and see it
   refused. Stop a running session and see it stop. Call the host without its
   token and see it refused.
+
+  Start the UI with `tools/synoptik-ui.sh start` and see the agent host start
+  with it. Open Agents and see Claude Code listed as logged in. Open a
+  document, choose the action that talks about it, and see a terminal open
+  beside it with Claude Code running in that repository and the document named.
+  Ask it to change one line of the document, approve the edit in the terminal,
+  and see the editor take the change. Close the page, open it again, and return
+  to the same conversation. Run `tmux ls` in an ordinary terminal and see the
+  same session. Try a headless launch in that repository and see it refused.
+  Connect to the terminal's address from a page of another origin and see it
+  refused.
 
   OPEN QUESTIONS
 

@@ -170,6 +170,7 @@ export function createHandler(config: HandlerConfig): (request: Request) => Prom
     if (!adapter) return refuse(404, "NO-SUCH-ADAPTER", `No agent adapter named ${id}.`);
     try {
       if (action === "sessions") return json(200, { sessions: await adapter.list() });
+      if (action === "terminals") return await terminals(adapter, request, route);
       if (request.method !== "POST") return refuse(405, "METHOD-NOT-ALLOWED", "Use POST.");
       const body = (await request.json().catch(() => ({}))) as Record<string, string>;
       const capabilities = await adapter.capabilities();
@@ -194,6 +195,26 @@ export function createHandler(config: HandlerConfig): (request: Request) => Prom
       if (error instanceof Unsupported) return refuse(501, "UNSUPPORTED", error.message);
       return refuse(502, "ADAPTER-FAILED", String(error?.message ?? error));
     }
+  }
+
+  // A terminal is opened, listed and closed here; its bytes go through the
+  // WebSocket proxy in terminals.ts (DES-0057 D21).
+  async function terminals(adapter: AgentController, request: Request, route: string): Promise<Response> {
+    const [, , , name, sub] = route.split("/");
+    const capabilities = await adapter.capabilities();
+    if (!capabilities.supported.includes("terminal")) throw new Unsupported(adapter.name, "terminal", capabilities.notes.terminal);
+    if (!name && request.method === "GET") return json(200, { terminals: await adapter.terminals() });
+    if (request.method !== "POST") return refuse(405, "METHOD-NOT-ALLOWED", "Use POST.");
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!name) {
+      if (typeof body.repository !== "string") return refuse(400, "MALFORMED-REQUEST", "A terminal needs a repository.");
+      const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+      return json(200, await adapter.openTerminal({
+        repository: body.repository, message: typeof body.message === "string" ? body.message : undefined, cols: num(body.cols), rows: num(body.rows),
+      }));
+    }
+    if (sub === "close") { await adapter.closeTerminal(decodeURIComponent(name)); return json(200, { closed: true }); }
+    return refuse(404, "NOT-FOUND", `No agent route ${route}.`);
   }
 
   function events(): Response {

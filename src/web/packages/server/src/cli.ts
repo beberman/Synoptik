@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { createHandler, restoreWorkspace } from "./handler.js";
 import { startListener } from "./listener.js";
+import { createTerminalProxy } from "./terminals.js";
 import { CloudCliAdapter, HostAdapter, NativeAdapter, type AgentController } from "@synoptik/agents";
 import { Stores } from "./store.js";
 import { ChangeFeed } from "./changes.js";
@@ -42,7 +43,7 @@ if (process.env.SYNOPTIK_AGENT_HOST_URL) {
   adapters.push(new HostAdapter({ baseUrl: process.env.SYNOPTIK_AGENT_HOST_URL, token: hostToken }));
 }
 try {
-  const server = await startListener({ host, port, token, staticDir, handler: createHandler({ serviceUrl, token, stores, adapters, subscribe: (listener) => feed.subscribe(listener) }) });
+  const server = await startListener({ host, port, token, staticDir, upgrade: createTerminalProxy({ token, adapters }), handler: createHandler({ serviceUrl, token, stores, adapters, subscribe: (listener) => feed.subscribe(listener) }) });
   console.log(`synoptik-ui listening on http://${host}:${port}/ for ${serviceUrl}${token ? " (token required)" : ""}`);
   for (const sig of ["SIGTERM", "SIGINT"] as const) process.on(sig, () => server.close(() => process.exit(0)));
 } catch (error: any) {

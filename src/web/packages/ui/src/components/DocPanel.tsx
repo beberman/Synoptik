@@ -2,15 +2,16 @@ import { useMemo, useState } from "react";
 import type { Client, operations } from "@synoptik/client";
 import { ArrowRight, X, ListChecks, Maximize2, Minimize2 } from "lucide-react";
 import Editor from "./Editor";
+import Fold from "./Fold";
 import DocCard, { TypeIcon } from "./DocCard";
 import { metaOf, indexByKey, key, refKey } from "../data";
 import type { Doc } from "../types";
 
 export default function DocPanel({
-  client, ops, doc, all, onClose, wide, onWide, onSelect, toast, reload,
+  client, ops, doc, all, onClose, wide, onWide, onSelect, toast, reload, folded, onFold,
 }: {
   client: Client; ops: ReturnType<typeof operations>; doc: Doc; all: Doc[]; onClose: () => void; wide: boolean; onWide: () => void;
-  onSelect: (id: string) => void; toast: (m: string) => void; reload: () => Promise<void>;
+  onSelect: (id: string) => void; toast: (m: string) => void; reload: () => Promise<void>; folded: boolean; onFold: () => void;
 }) {
   const [tab, setTab] = useState<"edit" | "relations">("edit");
   const [metaSlot, setMetaSlot] = useState<HTMLElement | null>(null);
@@ -28,19 +29,21 @@ export default function DocPanel({
   };
 
   return (
-    <div className="flex h-full flex-col bg-panel">
+    <div className={`flex flex-col bg-panel ${folded ? "" : "h-full"}`}>
       <div className="flex items-start gap-3 border-b border-line p-3">
         <TypeIcon type={doc.type} size={40} />
         <div className="min-w-0 flex-1">
           <div className="font-mono text-xs text-mute">{doc.repo} · {doc.id} · {metaOf(doc.type).label} · {doc.path}</div>
           <div className="truncate text-sm font-semibold" title={doc.title}>{doc.title}</div>
-          <div ref={setMetaSlot} />
+          <div ref={setMetaSlot} className={folded ? "hidden" : ""} />
         </div>
+        <Fold folded={folded} onFold={onFold} />
         <button className="btn hidden md:inline-flex" onClick={onWide} aria-label={wide ? "Show the document map" : "Hide the document map"} title={wide ? "Show the document map" : "Hide the document map"}>
           {wide ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </button>
         <button className="btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
       </div>
+      <div className={folded ? "hidden" : "contents"}>
       <div className="flex gap-1 border-b border-line px-2 pt-2">
         {(["edit", "relations"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -69,6 +72,7 @@ export default function DocPanel({
             </Group>
           </div>
         )}
+      </div>
       </div>
 
       {dry !== null && (

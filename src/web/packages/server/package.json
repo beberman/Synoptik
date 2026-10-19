@@ -12,6 +12,10 @@
     "synoptik-ui": "dist/cli.js"
   },
   "dependencies": {
-    "@synoptik/agents": "*"
+    "@synoptik/agents": "*",
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "8.5.13"
   }
 }

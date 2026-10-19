@@ -5,3 +5,4 @@ export { listFolders, type Folder } from "./folders.js";
 export { assertBindable, bearerMatches, isLoopback } from "./auth.js";
 export { READS, WRITES, isAllowed } from "./allow.js";
 export { ChangeFeed, type ChangeEvent, type ChangeFeedOptions } from "./changes.js";
+export { createTerminalProxy, upgradeAllowed, TOKEN_PROTOCOL, type TerminalProxyConfig } from "./terminals.js";

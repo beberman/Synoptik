@@ -19,6 +19,12 @@ export type Client = ((method: Method, path: string, body?: Json) => Promise<Jso
    * interface answers by asking again on a timer.
    */
   subscribe?: (listener: (event: ServerEvent) => void) => () => void;
+  /**
+   * Open a WebSocket to PATH on the server, carrying the token the way a
+   * browser can: as a subprotocol (DES-0057 D21). Absent where there is no
+   * WebSocket.
+   */
+  socket?: (path: string) => WebSocket;
 };
 
 /** The service refused the request. `body` is the service's `{name, message}`. */
@@ -108,6 +114,16 @@ export function fetchClient(options: FetchClientOptions = {}): Client {
     })();
     return () => stop.abort();
   };
+  if (typeof WebSocket !== "undefined") {
+    client.socket = (path) => {
+      const base = new URL(options.baseUrl || (typeof location !== "undefined" ? location.href : "http://localhost/"));
+      const url = new URL(path, base);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      const socket = options.token ? new WebSocket(url, [`synoptik-token.${options.token}`]) : new WebSocket(url);
+      socket.binaryType = "arraybuffer";
+      return socket;
+    };
+  }
   return client;
 }
 

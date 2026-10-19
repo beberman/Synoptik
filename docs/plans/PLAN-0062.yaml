@@ -209,7 +209,22 @@ body: |
 
   S20 Signing in from the page (R22), after S19 has run for real: the two host
       routes, a panel in Agents that shows the address and takes the code, and a
-      test that the web server stores neither.
+      test that the web server stores neither. Not built: R22 is replaced by
+      REQ-0081 R7.
+
+  S21 The terminal (R23, D21). In the host: `bridge/pty-bridge.py`, the terminal
+      routes, the tmux session per repository, the login line in
+      `capabilities`, and the lock shared with headless runs. In the agents
+      package: the terminal methods on HostAdapter. In the web server: the
+      terminal routes and the WebSocket proxy, with the Origin and token checks.
+      In the interface: Agents lists hosts, their login and a terminal per
+      repository; a Terminal component on xterm.js; a "Talk about this
+      document" action in the editor that opens it under the document.
+      `tools/synoptik-ui.sh start|stop|status` start and stop the host with the
+      server. Tests: the host's terminal routes against a fake tmux, the proxy
+      refusing a foreign Origin and a missing token, the bridge relaying bytes
+      and a resize. One live conversation on this machine, as the acceptance
+      section describes.
 
   S14 The `synoptik-cloudcli-plugin` repository: `manifest.json` at the root,
       `src/index.ts` with `mount` and `unmount`, `src/server.ts` calling

@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { extname, join, normalize, sep } from "node:path";
-import { Readable } from "node:stream";
+import { Readable, type Duplex } from "node:stream";
 import { assertBindable } from "./auth.js";
 
 const TYPES: Record<string, string> = {
@@ -17,6 +17,8 @@ export interface ListenerConfig {
   handler: (request: Request) => Promise<Response>;
   /** A directory of static files served for every path outside /api/. */
   staticDir?: string;
+  /** A WebSocket upgrade under /api/: the terminal proxy. Without it every upgrade is refused. */
+  upgrade?: (message: IncomingMessage, socket: Duplex, head: Buffer) => void;
 }
 
 function toRequest(message: IncomingMessage, host: string): Request {
@@ -68,6 +70,10 @@ export async function startListener(config: ListenerConfig): Promise<Server> {
     } catch (error: any) {
       reply.writeHead(500, { "content-type": "application/json" }).end(JSON.stringify({ name: "INTERNAL", message: String(error?.message ?? error) }));
     }
+  });
+  server.on("upgrade", (message, socket, head) => {
+    if (config.upgrade && (message.url ?? "").startsWith("/api/")) config.upgrade(message, socket, head);
+    else socket.end("HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n");
   });
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(config.port, config.host, resolve); });
   return server;

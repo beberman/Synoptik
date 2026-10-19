@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Client } from "@synoptik/client";
 import { Folder, FolderPlus, GitBranch, Pause, Play, Trash2, X, RefreshCw } from "lucide-react";
+import Fold from "./Fold";
 import { repoColor } from "../data";
 import { useWs } from "../context";
 import type { Repo } from "../types";
@@ -12,8 +13,8 @@ const STATE_STYLE: Record<Repo["state"], string> = {
 interface FolderRow { name: string; path: string; git: boolean; watched: boolean }
 
 export default function Workspace({
-  client, repos, reload, counts, onClose, toast,
-}: { client: Client; repos: Repo[]; reload: () => Promise<void>; counts: Record<string, number>; onClose: () => void; toast: (m: string) => void }) {
+  client, repos, reload, counts, onClose, toast, folded, onFold,
+}: { client: Client; repos: Repo[]; reload: () => Promise<void>; counts: Record<string, number>; onClose: () => void; toast: (m: string) => void; folded: boolean; onFold: () => void }) {
   const [picking, setPicking] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [folders, setFolders] = useState<{ roots: string[]; folders: FolderRow[] } | null>(null);
@@ -42,15 +43,16 @@ export default function Workspace({
   };
 
   return (
-    <div className="flex h-full flex-col bg-panel">
+    <div className={`flex flex-col bg-panel ${folded ? "" : "h-full"}`}>
       <div className="flex items-center gap-2 border-b border-line p-3">
         <GitBranch size={18} /> <span className="font-semibold">Workspace</span>
         <span className="text-xs text-mute">{repos.length} folders</span>
         <button className="btn btn-primary ml-auto" onClick={() => setPicking(true)}><FolderPlus size={16} /> Add folder</button>
+        <Fold folded={folded} onFold={onFold} />
         <button className="btn" onClick={onClose} aria-label="Close workspace"><X size={16} /></button>
       </div>
 
-      <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+      <ul className={folded ? "hidden" : "min-h-0 flex-1 space-y-2 overflow-y-auto p-3"}>
         {repos.map((r) => (
           <li key={r.name} className="rounded-xl border border-line p-3">
             <div className="flex items-center gap-2">

@@ -301,6 +301,70 @@ body: |
       returns the address it prints, and writes the pasted one-time code to the
       process; the web server forwards both and stores nothing.
 
+  D21 The terminal (R23). Claude Code runs interactively inside tmux, one
+      session per repository, named `synoptik-` followed by the repository's
+      folder name and the first eight hex digits of the SHA-256 of its real
+      path. tmux holds the conversation, so a closed page, a restarted web
+      server or a restarted host does not end it. It is also the person's own
+      tmux server, so `tmux attach -t <name>` reaches the same session from an
+      ordinary terminal. The session is started with `tmux new-session -d -s
+      <name> -c <repository> -x <cols> -y <rows> -- claude -- <first message>`,
+      and its status line is turned off. Claude Code runs with its own
+      permission mode and no tool list, because the person answers its
+      prompts. Its credentials are the login already made on the machine.
+
+      The browser reaches the session through a pseudo-terminal running `tmux
+      attach`. Node has no pseudo-terminal of its own, and `node-pty` is a
+      native module whose install script `--ignore-scripts` would skip. So the
+      host runs `bridge/pty-bridge.py`, about sixty lines of Python's standard
+      `pty` module. It relays bytes between its standard streams and the
+      pseudo-terminal, and reads window sizes from file descriptor 3. A new
+      size is set with TIOCSWINSZ, which tmux sees as SIGWINCH.
+
+      Host routes, beside D20's: `GET terminals` lists the live sessions by
+      asking tmux. `POST terminals` {repository, message, cols, rows} returns
+      the session for that repository. It starts one if there is none. If one
+      is already running, the message is typed at its prompt without Enter, so
+      the person can read it before sending. `POST terminals/{name}/close` ends
+      the session. `GET terminals/{name}/io` is a WebSocket. A binary frame
+      carries terminal bytes in either direction, and a text frame
+      {"type":"resize","cols":c,"rows":r} carries a new size. The bridge
+      process lives as long as the WebSocket does, and the tmux session
+      outlives both. A headless launch into a repository with a live terminal
+      is refused with 409, and so is a terminal in a repository where a
+      headless run is working. `GET capabilities` adds `terminal` to
+      `supported`. It also reports `login`: the `loggedIn` and `authMethod`
+      fields of `claude auth status --json`, read at most once a minute, and no
+      other field.
+
+      The web server forwards these routes as `/api/agents/{id}/terminals...`.
+      It proxies the WebSocket upgrade to the host with the host's token in
+      `Authorization`. Before it upgrades, it checks the request's Origin
+      against the request's Host. With no token configured, it also requires a
+      loopback Host, as it does for HTTP. A browser's WebSocket cannot send a
+      header, so a server with a token takes it as the subprotocol
+      `synoptik-token.<token>`. The token is hex, so it is a valid subprotocol
+      name. The proxy uses `ws` 8.18.0, which has no dependencies and no
+      install script, in both the server and the host. The interface draws the
+      terminal with `@xterm/xterm` 5.5.0 and `@xterm/addon-fit` 0.10.0.
+
+      In the interface, Agents lists each adapter that supports `terminal`
+      with its login line, and lists the workspace's repositories with "Open
+      terminal" or, when one is live, "Return to terminal". The editor's
+      header has "Talk about this document". It opens the terminal under the
+      document with the first message "I have <path> open in Synoptik's editor.
+      Read it; I want to talk about it." With unsaved edits, the action asks
+      for them to be saved first. AskAgent gains "Open in terminal", which
+      sends its task as the first message instead of as a headless run.
+
+      `tools/synoptik-ui.sh start` starts the host as well when `claude` and
+      `tmux` are on PATH. Its token is 32 random bytes in hex, made once and
+      kept in `~/.synoptik/agent-host.token` with mode 600. Its repositories
+      are `SYNOPTIK_HOST_REPOS` when that is set. Otherwise they are the roots
+      the service's `status` lists at start, so a repository added later needs
+      `tools/synoptik-ui.sh restart`. `stop` stops both processes and leaves
+      the tmux sessions running.
+
   THE EDITOR
 
   D14 The editor opens a document from `read-document`. The YAML is parsed with a
@@ -461,3 +525,4 @@ body: |
   identifies sessions; how a plugin tab appears on a phone; whether CloudCLI's
   plugin loader accepts a monorepo subdirectory after all. Each is listed under
   REQ-0080's open questions and none blocks D1 to D7.
+importance: Critical
