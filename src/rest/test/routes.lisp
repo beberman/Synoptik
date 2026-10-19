@@ -260,3 +260,38 @@ export const api = functions.https.onRequest((req, res) => {});
                                          :parameters (list (cons "repository"
                                                                  (repository-name repository))
                                                            (cons "term" "zarquon")))))))))
+
+;;; ------------------------------------------------------------------
+;;; Documents as text: a stale write is a 409 that carries the stored text
+;;; ------------------------------------------------------------------
+
+(defun post-document-json (operation alist)
+  (http-call (route operation) :method :post :content-type "application/json"
+             :content (json:encode-json-to-string alist)))
+
+(test a-stale-document-write-is-a-409-carrying-the-current-text
+  ;; REQ-0080 R5. Without the CONDITION -> 409 mapping this is a 500.
+  (with-operations-fixture (repository)
+    (with-test-server ()
+      (let* ((name (repository-name repository))
+             (read (decode (http-call (route :read-document)
+                                      :parameters (list (cons "repository" name)
+                                                        (cons "document" "DEC-0001")))))
+             (text (cdr (assoc :text read)))
+             (version (cdr (assoc :version read))))
+        (multiple-value-bind (body status)
+            (post-document-json :write-document
+                       `((repository . ,name) (document . "DEC-0001")
+                         (text . ,(concatenate 'string text "tags: [a]" (string #\Newline)))
+                         (version . ,version)))
+          (is (= 200 status) "the first write: ~a" body))
+        (multiple-value-bind (body status)
+            (post-document-json :write-document
+                       `((repository . ,name) (document . "DEC-0001")
+                         (text . ,(concatenate 'string text "tags: [b]" (string #\Newline)))
+                         (version . ,version)))
+          (is (= 409 status) "the second write: ~a" body)
+          (let ((current (cdr (assoc :current (decode body)))))
+            (is (search "tags: [a]" (cdr (assoc :text current)))
+                "the body carries the text now stored")
+            (is-true (cdr (assoc :version current)))))))))

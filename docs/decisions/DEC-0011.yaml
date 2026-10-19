@@ -43,3 +43,15 @@ rationale: |
   4 emits `@property` rules, which are reported not to apply inside a shadow
   root, and Tailwind 3 does not emit them, so the major version is open. Neither
   point has been tested here.
+
+  Spike S1 result, 2026-10-17 (src/web/spikes/s1-shadow), in headless Chromium
+  and in CloudCLI 1.37.5 with the probe installed through CloudCLI's own route.
+  Tailwind 3.4.17 is chosen. Tailwind 4.1.11, adopted as a constructed
+  stylesheet in a shadow root, drew no `shadow-lg`, no `ring-2` and no
+  `bg-gradient-to-r`: each computed to `none`, in the page and in the Radix
+  dialog, at both host font sizes. Tailwind 3 drew all of them, and a Radix
+  dialog portalled into the root was styled and fixed-positioned. `rem` follows
+  the host: `w-16` measured 64 px at a 16 px host root and 80 px at 20 px. A
+  build step that rewrites `rem` to `px` held it at 64 px at both. CloudCLI's
+  root is 16 px, so the plugin build applies that rewrite and the standalone
+  shell does not need it.

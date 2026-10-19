@@ -475,6 +475,32 @@ machine.
 Not run: the `synoptik_*` tools from a signed-in Claude Code session, a GPU, and
 what `complete` writes when the caller is not the service's account.
 
+## The web UI
+
+`src/web/` holds a browser interface (REQ-0080). It needs Node 22 or later and
+nothing else; the Lisp side needs no extra system. The Node server forwards a
+fixed list of operations to the service and serves the interface:
+
+    tools/synoptik-ui.sh start        # http://127.0.0.1:4790/
+    tools/synoptik-ui.sh status
+    tools/synoptik-ui.sh stop
+
+The service must be running (`tools/synoptik-serve.sh`), and the server replays
+the saved workspace against it at startup. The workspace (`web.json`) and the
+interface state (`ui-state.json`) are in `~/.synoptik/`, or under
+`$SYNOPTIK_WEB_HOME`. Folders offered for adding are the directories under the
+`roots` in `web.json`, which is empty until you list some:
+
+    {"version": 1, "roots": ["/home/you/lisp"], "repositories": []}
+
+To reach it from a phone, set `SYNOPTIK_UI_HOST=0.0.0.0` and a
+`SYNOPTIK_UI_TOKEN`. The server refuses to start on any address but loopback
+without a token, because it forwards to a service that has no credential of its
+own. The token travels in clear over plain HTTP, so cross anything but your own
+network through TLS or a tunnel. The Node server's tests are
+`cd src/web && npx vitest run`. This section was exercised on one machine with
+Node 24.
+
 ## Register it with Claude Code
 
 The registration command was run on the second virtual machine (2026-10-12),

@@ -1,12 +1,12 @@
 id: DES-0057
 title: The web UI adds four document operations to the registry, one static-file peer system, and a TypeScript workspace in src/web with two hosts and an agent interface
-status: draft
+status: accepted
 priority: p2
 date: 2026-10-17
 refines: [REQ-0080, DEC-0011, DEC-0012]
 affects: [dispatch-request, loopback-host-p, resolve-caller-grants,
           docstore-read, docstore-write, check-document-references]
-tags: [web, ui, react, tailwind, cloudcli, plugin, agents, adapter, rest, mobile,
+tags: [web, ui, react, tailwind, agents, adapter, rest, mobile,
        req-0080, dec-0011, dec-0008, des-0006, des-0051, dec-0001]
 summary: |
   The service already answers most of what the UI asks. `find`, `describe`,
@@ -18,10 +18,9 @@ summary: |
   them together (DES-0006 R5).
 
   The UI is a TypeScript workspace in `src/web/`. A Node server in it proxies
-  the browser's calls to the Synoptik REST API, and the same server code runs in
-  two places: as the standalone UI's own listener, and as the subprocess
-  CloudCLI spawns for the plugin. One components package renders in both
-  browsers. Agent control is a TypeScript interface whose adapters run in that
+  the browser's calls to the Synoptik REST API as the standalone UI's own
+  listener. The CloudCLI plugin, which runs the same server code as a
+  subprocess, moved to DES-0058 on 2026-10-18. Agent control is a TypeScript interface whose adapters run in that
   server, so their credentials stay out of the browser.
 
   The Node server is also the answer to phone access. The Synoptik listener
@@ -112,29 +111,23 @@ body: |
       packages/client   the Client type, a fetch-based client, the response
                         types, and the conflict error.
       packages/ui       React components styled with Tailwind (DEC-0011), and
-                        `mountInShadowRoot(container, client, options)`.
+                        and `mountInShadowRoot(container, client, options)`,
+                        which belongs to DES-0058.
       packages/agents   the AgentController interface, the status type, the
-                        native adapter and the CloudCLI adapter.
+                        native adapter and the host adapter. The CloudCLI
+                        adapter is there too and belongs to DES-0058.
       packages/server   the proxy: `createHandler(config)`, a function from a
                         request to a response, with no listener of its own.
       apps/standalone   the Vite shell and a listener that serves its build and
                         calls `createHandler`. `npm run build` writes `dist/`.
 
-      The CloudCLI plugin is not in this tree. CloudCLI reads `manifest.json`
-      from the root of the repository it clones, so the plugin is the repository
-      `synoptik-cloudcli-plugin`. Its `package.json` depends on `packages/ui`,
-      `packages/client` and `packages/server` at a pinned git tag. Its
-      `src/index.ts` exports `mount` and `unmount`, and its `src/server.ts` calls
-      `createHandler` and prints the ready line CloudCLI waits for. CloudCLI runs
-      `npm install --ignore-scripts` and then `npm run build`, so the build step
-      is the only code of ours that runs at install.
+      The CloudCLI plugin is not in this tree. It is DES-0058 D1.
 
   D5  The Client type is `(method, path, body?) => Promise<Json>`. Components
       receive one and never build a URL. In the standalone shell it calls the
-      Node server on the page's own origin under `/api/`. In the plugin it wraps
-      `api.rpc`, which reaches the plugin's Node server, which is the same
-      `createHandler`. Both routes end in one place, so there is one proxy to
-      test and one to audit.
+      Node server on the page's own origin under `/api/`. A second host that
+      reaches the same `createHandler` another way is DES-0058 D2, so there is
+      still one proxy to test and one to audit.
 
   D6  The proxy. `createHandler({serviceUrl, token, allow, adapters})` answers
       three families of request.
@@ -151,8 +144,8 @@ body: |
       own loopback name, so DEC-0008's check passes on the Lisp side.
 
       `/api/agents/...` calls the configured AgentController adapters, which run
-      here. A CloudCLI credential is read from the server's configuration or
-      from a CloudCLI plugin secret and is never sent to the browser.
+      here. A credential an adapter needs is read from the server's configuration
+      and is never sent to the browser.
 
       `/api/events` is a server-sent event stream of status changes, built from
       the adapters' `subscribe`.
@@ -161,9 +154,7 @@ body: |
       boundary DEC-0008 says the service lacks. The standalone listener binds
       127.0.0.1 by default. It binds any other address only when a token is
       configured, compares each request's bearer token in constant time, and
-      refuses to start without one. The plugin server binds 127.0.0.1, as
-      CloudCLI requires, and CloudCLI authenticates the browser before it
-      proxies. The standalone listener over plain HTTP sends the token in the
+      refuses to start without one. The standalone listener over plain HTTP sends the token in the
       clear, so reaching it beyond the local network needs TLS or a tunnel
       the user provides.
 
@@ -210,9 +201,9 @@ body: |
       an empty workspace. A file that does not parse is reported in `/api/folders`
       and left as it is, and the server runs with an empty workspace and writes
       nothing until the file is fixed or deleted. The file holds no token: the
-      bearer token comes from the environment (D6). The standalone host and the
-      plugin's server read the same file, so a folder added in one appears in
-      the other after the next load.
+      bearer token comes from the environment (D6). A second host that reads the
+      same file (DES-0058) would see a folder added in either after the next
+      load.
 
   D17 Interface state is a second file, `~/.synoptik/ui-state.json`, beside the
       workspace file and under the same directory rules, because it changes on
@@ -295,11 +286,75 @@ body: |
       read, log or return them. Sessions are kept in memory, the last 50, and a
       restart forgets them. `HostAdapter` in `packages/agents` implements
       AgentController against these routes, so the web server's agent routes
-      and the interface do not change, and CloudCliAdapter stays beside it.
+      and the interface do not change. The CloudCLI adapter is DES-0058 D4.
       Signing in from the page (R22) adds `POST auth/login` and
       `POST auth/code` to the host later: the host runs `claude auth login`,
       returns the address it prints, and writes the pasted one-time code to the
       process; the web server forwards both and stores nothing.
+
+  D21 The terminal (R23). Claude Code runs interactively inside tmux, one
+      session per repository, named `synoptik-` followed by the repository's
+      folder name and the first eight hex digits of the SHA-256 of its real
+      path. tmux holds the conversation, so a closed page, a restarted web
+      server or a restarted host does not end it. It is also the person's own
+      tmux server, so `tmux attach -t <name>` reaches the same session from an
+      ordinary terminal. The session is started with `tmux new-session -d -s
+      <name> -c <repository> -x <cols> -y <rows> -- claude -- <first message>`,
+      and its status line is turned off. Claude Code runs with its own
+      permission mode and no tool list, because the person answers its
+      prompts. Its credentials are the login already made on the machine.
+
+      The browser reaches the session through a pseudo-terminal running `tmux
+      attach`. Node has no pseudo-terminal of its own, and `node-pty` is a
+      native module whose install script `--ignore-scripts` would skip. So the
+      host runs `bridge/pty-bridge.py`, about sixty lines of Python's standard
+      `pty` module. It relays bytes between its standard streams and the
+      pseudo-terminal, and reads window sizes from file descriptor 3. A new
+      size is set with TIOCSWINSZ, which tmux sees as SIGWINCH.
+
+      Host routes, beside D20's: `GET terminals` lists the live sessions by
+      asking tmux. `POST terminals` {repository, message, cols, rows} returns
+      the session for that repository. It starts one if there is none. If one
+      is already running, the message is typed at its prompt without Enter, so
+      the person can read it before sending. `POST terminals/{name}/close` ends
+      the session. `GET terminals/{name}/io` is a WebSocket. A binary frame
+      carries terminal bytes in either direction, and a text frame
+      {"type":"resize","cols":c,"rows":r} carries a new size. The bridge
+      process lives as long as the WebSocket does, and the tmux session
+      outlives both. A headless launch into a repository with a live terminal
+      is refused with 409, and so is a terminal in a repository where a
+      headless run is working. `GET capabilities` adds `terminal` to
+      `supported`. It also reports `login`: the `loggedIn` and `authMethod`
+      fields of `claude auth status --json`, read at most once a minute, and no
+      other field.
+
+      The web server forwards these routes as `/api/agents/{id}/terminals...`.
+      It proxies the WebSocket upgrade to the host with the host's token in
+      `Authorization`. Before it upgrades, it checks the request's Origin
+      against the request's Host. With no token configured, it also requires a
+      loopback Host, as it does for HTTP. A browser's WebSocket cannot send a
+      header, so a server with a token takes it as the subprotocol
+      `synoptik-token.<token>`. The token is hex, so it is a valid subprotocol
+      name. The proxy uses `ws` 8.18.0, which has no dependencies and no
+      install script, in both the server and the host. The interface draws the
+      terminal with `@xterm/xterm` 5.5.0 and `@xterm/addon-fit` 0.10.0.
+
+      In the interface, Agents lists each adapter that supports `terminal`
+      with its login line, and lists the workspace's repositories with "Open
+      terminal" or, when one is live, "Return to terminal". The editor's
+      header has "Talk about this document". It opens the terminal under the
+      document with the first message "I have <path> open in Synoptik's editor.
+      Read it; I want to talk about it." With unsaved edits, the action asks
+      for them to be saved first. AskAgent gains "Open in terminal", which
+      sends its task as the first message instead of as a headless run.
+
+      `tools/synoptik-ui.sh start` starts the host as well when `claude` and
+      `tmux` are on PATH. Its token is 32 random bytes in hex, made once and
+      kept in `~/.synoptik/agent-host.token` with mode 600. Its repositories
+      are `SYNOPTIK_HOST_REPOS` when that is set. Otherwise they are the roots
+      the service's `status` lists at start, so a repository added later needs
+      `tools/synoptik-ui.sh restart`. `stop` stops both processes and leaves
+      the tmux sessions running.
 
   THE EDITOR
 
@@ -340,15 +395,8 @@ body: |
 
   STYLE
 
-  D7  `mountInShadowRoot` attaches a shadow root to the container, adds the
-      built stylesheet to it as a constructed stylesheet, renders the
-      components into it, and gives overlay components the root as their portal
-      container. The theme is a `data-theme` attribute on the root's wrapper
-      element: the plugin sets it from `api.context.theme` and the shell from
-      `prefers-color-scheme`. Spike S1 settled DEC-0011's two open points:
-      Tailwind 3 is used because Tailwind 4 draws no shadows, rings or gradients
-      in a shadow root, and the plugin build rewrites `rem` to `px` because
-      `rem` follows the host's root font size.
+  D7  Moved to DES-0058 D3: the shadow root, its theme and the Tailwind choice
+      it settled.
 
   AGENTS
 
@@ -377,28 +425,12 @@ body: |
       can be told from it. The adapter says so in its notes and invents nothing.
       `context-log` is not built, and PLAN-0062 S5 no longer lists it.
 
-  D10 The CloudCLI adapter runs in the Node server and calls CloudCLI's REST API at
-      an address and with credentials the server's configuration holds
-      (`SYNOPTIK_CLOUDCLI_URL`, `_TOKEN`, `_API_KEY`). The browser sees none of
-      them. CloudCLI's source (spike S3, read 2026-10-17) offers two routes that
-      serve this. `GET /api/projects` with a JWT lists each project's sessions
-      with id, provider, summary, last activity and message count, which gives
-      `list`. `POST /api/agent` with an API key made in CloudCLI starts a run
-      from a project path and a message, which gives `launch`, and with
-      `stream: false` it answers when the run ends. The server therefore answers
-      a launch with 202 at once and keeps the outcome in a list of the last 20
-      launches. There is no abort route and no running-state route: a run's
-      state is on CloudCLI's WebSocket, whose messages are not documented. So
-      the adapter reports `list` and `launch` only, and every session it lists
-      has status `unknown`. It has not been run against a live CloudCLI. Inside
-      the CloudCLI host the plugin does not register this adapter: the host's own
-      session views are the agent surface.
+  D10 Moved to DES-0058 D4: the CloudCLI adapter.
 
   D11 Launch and stop are writes. The Node server offers them only when the
       service grants :write and the adapter reports the capability, as the MCP
       listing already withholds `synoptik_context_used` from a read-only caller
-      (REQ-0032). The CloudCLI plugin does not offer them at all, since CloudCLI
-      does.
+      (REQ-0032).
 
   TESTS
 
@@ -411,8 +443,8 @@ body: |
       checks: an operation off the allow list is refused, a non-loopback bind
       without a token refuses to start, and a wrong token is refused. R13 is
       checked in a browser at 360 px, with no horizontal scroll on the page and
-      every control at least 44 px square. The shadow-root points of D7 and the
-      round trip of D15 are checked by spikes before any component is written.
+      every control at least 44 px square. The round trip of D15 is checked by
+      a spike before any component is written.
 
   REACHING IT FROM A PHONE
 
@@ -420,9 +452,7 @@ body: |
       (DEC-0008), because the service has no credential and
       `resolve-caller-grants` gives every caller :read and :write. A phone
       reaches the UI through the Node server, which D6 makes the authenticated
-      boundary. Through CloudCLI the phone reaches CloudCLI's own server and the
-      plugin server calls Synoptik from the same machine. Through the standalone
-      listener the phone sends a token, over TLS or a tunnel the user provides.
+      boundary. Through the standalone listener the phone sends a token, over TLS or a tunnel the user provides.
       The Lisp check is unchanged and still protects the service from a web page
       in the user's browser.
 
@@ -443,11 +473,9 @@ body: |
   synoptik-rest's routes are derived from the registry and a static-file
   handler is not an operation, so the file would hold two shapes.
 
-  Putting the plugin in `src/web/`. CloudCLI clones a URL and reads a root
-  manifest, and the manifest page mentions no subdirectory install.
-
-  Components that build their own URLs. Rejected because the plugin has no URL to
-  the service: its only route out of the browser is `api.rpc`.
+  Components that build their own URLs. Rejected because a host may have no URL
+  to the service. The plugin's only route out of the browser is `api.rpc`
+  (DES-0058 D2).
 
   Cost of the Node server. A second runtime to run beside SBCL, and a second
   process for the service's unit to supervise; `tools/` gains a script to start it.
@@ -455,9 +483,7 @@ body: |
 
   OUTSTANDING
 
-  The editor library (D15).
-
-  CloudCLI's REST routes for launch and stop; whether the retrieval log
-  identifies sessions; how a plugin tab appears on a phone; whether CloudCLI's
-  plugin loader accepts a monorepo subdirectory after all. Each is listed under
-  REQ-0080's open questions and none blocks D1 to D7.
+  Whether the retrieval log identifies sessions (D9). It is listed under
+  REQ-0080's open questions and blocks nothing. The CloudCLI questions moved to
+  DES-0058 and REQ-0083.
+importance: Critical

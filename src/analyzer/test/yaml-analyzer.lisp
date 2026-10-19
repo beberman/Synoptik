@@ -455,6 +455,18 @@ importance: ~a~%summary: s~%" (car case)))))
       (is (eq (cdr case) (getp e :importance))
           "~a must be recorded as ~s" (car case) (cdr case)))))
 
+(test tags-and-date-are-kept-on-a-workflow-document
+  ;; REQ-0080. The explorer filters on tags and shows the date; without the
+  ;; two properties in the :DOCUMENT method both read as NIL here.
+  (let ((e (requirement-entity-from
+            (format nil "id: REQ-9999~%title: t~%status: draft~%date: 2026-10-17~%~
+tags: [ui, multi-user]~%summary: s~%"))))
+    (is (equal '("ui" "multi-user") (getp e :tags)))
+    (is (equal "2026-10-17" (getp e :date))))
+  (let ((e (requirement-entity-from (format nil "id: REQ-9998~%title: t~%status: draft~%summary: s~%"))))
+    (is (null (getp e :tags)))
+    (is (null (getp e :date)))))
+
 (test a-real-documents-importance-arrives-as-a-vocabulary-keyword
   ;; The live path the test above used to cover, asserting what does not move:
   ;; a document in this tree that declares an importance has it read as one of

@@ -1,0 +1,65 @@
+id: BUG-0084
+type: bug
+title: Saving one document walked every file under the repository root, 20 seconds on front-end
+status: closed
+severity: major
+date: 2026-10-18
+importance: Major
+refines: [REQ-0080, DES-0057]
+affects: [write-document-text, create-document, tree-listing, poll-documents]
+tags: [performance, documents, docstore, web, req-0080, node-modules]
+summary: |
+  On front-end a save in the web UI took 20 to 36 seconds. On utils and
+  game-server it took 0.2 and 0.3 seconds. The time did not depend on the
+  document: a concept with no `affects:` was as slow as a requirement that
+  names three functions.
+body: |
+  MEASURED
+
+  Writing one line to a document and writing the original text back, through
+  `write-document` on the running service, 2026-10-18:
+
+      utils         REQ-0001   0.19 s
+      game-server   REQ-0001   0.33 s
+      front-end     REQ-0007   21.3 s and 35.9 s for the restore
+      front-end     CON-0001   19.9 s and 28.7 s for the restore
+
+  A copy of front-end without node_modules and dist, written the same way in
+  a standalone image, took 0.4 s. A statistical profile of that run put all of
+  it under WALK-CHANGES, in `fstatat`, `readlink` and `getdents64`.
+
+  CAUSE
+
+  WRITE-DOCUMENT-TEXT and CREATE-DOCUMENT called POLL-DOCUMENTS after the
+  store wrote. A file store answers "what changed" by listing the tree with
+  `(directory "**/*.*")`. front-end holds 112,141 files and 98,000 of them are
+  under node_modules and dist, so one listing takes 6.8 s. A save waited for
+  one or more of those, and for the background poll's own listing when that
+  held the repository lock. The background poll repeats the listing every two
+  seconds for every watched repository, which is why the service sat at 120%
+  CPU for the 14 hours it had been up.
+
+  FIX
+
+  R1  A write indexes the one document it wrote. INDEX-WRITTEN-DOCUMENT takes
+      the record the store returned, indexes it, and puts its stamp in the
+      token, so the next poll does not read it again. It walks nothing.
+
+  R2  The tree listing does not enter a dot-directory or a directory named
+      `node_modules`, at any depth. WALK-TREE replaces `**/*.*` and keeps its
+      two behaviours that mattered: a directory that is a symbolic link is not
+      followed, and a file is listed under its resolved name.
+
+  The first makes a save independent of the size of the repository. The
+  second takes the background poll from 6.8 s to about 0.4 s on front-end.
+
+  The status change still reindexes the whole repository when it moves a
+  file (DES-0019, RULE-0007), so it costs a reindex on a large repository.
+  That is not changed here. BUG-0085 records what skipping node_modules by
+  name costs and is not to be fixed.
+
+  VERIFIED
+
+  Tests in src/workspace/test/document-edit.lisp: a save makes no walk, and
+  the index holds what was written; the poll after a save reads nothing more;
+  the walk skips node_modules and dot-directories and nothing else.

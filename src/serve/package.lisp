@@ -46,6 +46,8 @@
    #:request-error
    #:malformed-request
    #:repository-indexing
+   #:version-conflict
+   #:version-conflict-current
    #:unknown-entity
    #:unknown-operation
    #:request-message

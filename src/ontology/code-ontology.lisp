@@ -1455,6 +1455,16 @@ measurable outside a production environment, where it has real units -- incident
 per request, incidents per client per hour -- so a number here could only be a
 guess in a slot that reads as measured, which is CON-0001's fabricated fact.
 DEC-0007 refuses it rather than defers it.")
+               (:tags list
+                :documentation "The tags: field, as written.  Declared for
+REQ-0080's explorer, which filters on a tag such as multi-user and cannot ask
+the file: 342 documents here write the field and the index held none of it, the
+same shape as :IMPORTANCE and :AFFECTS above.  :DECISION and :CONCEPT already
+carry it.")
+               (:date string
+                :documentation "The date: field as the author wrote it,
+yyyy-mm-dd.  A string and not a universal time: the explorer shows and sorts it,
+and a time zone would be a fact the file never stated.  REQ-0080.")
                (:dropped-fields list
                 :documentation "Names this document wrote whose value was
 outside the field's vocabulary, so nothing was stored.  BUG-0062 F2 and

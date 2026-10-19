@@ -1,0 +1,17 @@
+import { chromium } from "playwright-core";
+const b = await chromium.launch({ executablePath: process.env.CHROMIUM, args: ["--no-sandbox"] });
+const p = await b.newPage({ viewport: { width: 360, height: 740 } });
+await p.addInitScript((t) => localStorage.setItem("auth-token", t), process.env.CC_TOKEN);
+await p.goto("http://127.0.0.1:3055");
+await p.waitForTimeout(3000);
+await p.getByText("proj", { exact: true }).locator("visible=true").first().click();
+await p.waitForTimeout(2500);
+await p.screenshot({ path: "out/cloudcli-phone-project.png" });
+await p.locator("button", { hasText: "S1 Probe" }).locator("visible=true").first().click();
+await p.waitForTimeout(1500);
+const m = await p.evaluate(() => { for (const e of document.querySelectorAll("*")) { const r = e.shadowRoot; if (r && r.getElementById("probe")) { const host = e.getBoundingClientRect(); const dlg = r.getElementById("dialog").getBoundingClientRect(); return { hostWidth: host.width, hostHeight: host.height, probeWidth: r.getElementById("probe").getBoundingClientRect().width, dialogLeft: dlg.left, dialogRight: dlg.right, viewport: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth }; } } return null; });
+console.log("PLUGIN ON PHONE", JSON.stringify(m));
+await p.screenshot({ path: "out/cloudcli-phone-plugin.png" });
+const names = await p.evaluate(() => [...document.querySelectorAll("button, a, [role=tab]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).map((e) => ((e.getAttribute("aria-label") || e.textContent || "").trim() + " " + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))));
+console.log(names.join("\n"));
+await b.close();

@@ -1,0 +1,2 @@
+{ "name": "s1-probe", "displayName": "S1 Probe", "version": "0.0.1", "description": "Tailwind in a shadow root, PLAN-0062 S1.",
+  "author": "synoptik", "icon": "icon.svg", "type": "module", "slot": "tab", "entry": "dist/index.js", "permissions": [] }
