@@ -1,0 +1,45 @@
+id: BUG-0087
+type: bug
+title: Talk about this document sent REQ-0081's path while REQ-0008 was open, and the second click sent the right one
+status: open
+severity: minor
+date: 2026-10-19
+importance: Minor
+refines: [REQ-0080]
+affects: [Editor.tsx, DocPanel.tsx]
+tags: [web-ui, terminal, talk-about-document, stale-state, unreproduced]
+summary: |
+  The first click on "Talk about this document" typed a message naming
+  docs/requirements/REQ-0081.yaml into the live terminal. The panel showed
+  REQ-0008, with its check_document column, YAML and summary all REQ-0008's.
+  A second click sent the right path. Not reproduced.
+body: |
+  OBSERVED
+
+  2026-10-19, in the browser terminal already live on the Synoptik
+  repository. The person pressed "Talk about this document" with REQ-0008
+  selected. The agent received "I have docs/requirements/REQ-0081.yaml open in
+  Synoptik's editor. Read it; I want to talk about it." The person pressed it
+  again and the message named the right file.
+
+  CHECKED
+
+  - The service returns docs/requirements/completed/REQ-0008.yaml for
+    REQ-0008 in Synoptik. Two other repositories hold a REQ-0008 too
+    (front-end, lfia-accounting), with their own paths.
+  - Editor.tsx:82 builds the message from the `doc` prop of that render. The
+    agent host types it at the prompt unchanged (host.ts openTerminal, the
+    `live` branch). Neither step can change a path.
+
+  NOT KNOWN
+
+  How REQ-0008 was reached before the first click. The likely cause is a
+  stale `doc` in the Talk handler during a switch from REQ-0081, while the
+  header and tabs had updated. That is a guess from timing. No browser run
+  has shown it; the attempt failed on its own selector.
+
+  TO REPRODUCE
+
+  Open REQ-0081, switch to another document by the Refines tab, the list or
+  the recent list, press Talk at once, and read the POST body to
+  /api/agents/*/terminals.
