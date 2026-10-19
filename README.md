@@ -19,6 +19,13 @@ follow the [code of conduct](CODE_OF_CONDUCT.md). Synoptik is MIT-licensed
 ([LICENSE](LICENSE)), and [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)
 lists the licence of each library it loads.
 
+Synoptik now includes a web server app that provides a way to navigate, edit, and interact
+with coding agents at the document level.  Using this tool its easy to write and review 
+requirements, have an agent expand those requirements, build and review designs, create
+plans, and execute code. Documents and their relatioships can be navigated including
+dependant code.  This provides a powerful way of controlling an agent and writing
+code at the requirments and design level and letting the agent create and test the code.
+
 Synoptik was called Synoptik until October 2026. The code keeps the old name: the
 ASDF systems and packages are `synoptik-*`, the MCP
 tools are `synoptik_*`, and the index directory is `.synoptik/`.
