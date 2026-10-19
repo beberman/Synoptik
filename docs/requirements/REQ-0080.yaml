@@ -18,7 +18,7 @@ summary: |
   first part is what it lacks.
 
 body: |
-  PRIORITY: P2, 2026-10-17
+  PRIORITY: P1, 2026-10-19
 
   Sequence: REQ-0008 is the surface this sits on. REQ-0021 R8 says an agent in a
   prepared worktree reaches Synoptik through the service; the agent half of this
