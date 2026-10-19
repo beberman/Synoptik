@@ -66,6 +66,17 @@ export function tagCounts(docs: Doc[]): [string, number][] {
   return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
+/**
+ * The tags to offer: those of the documents in REPOS (all documents when none is
+ * chosen), alphabetical. CHOSEN stays listed so the select can show it.
+ */
+export function tagOptions(docs: Doc[], repos: string[], chosen: string): [string, number][] {
+  const tags = tagCounts(repos.length ? docs.filter((d) => repos.includes(d.repo)) : docs)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  if (chosen && !tags.some(([t]) => t === chosen)) tags.unshift([chosen, 0]);
+  return tags;
+}
+
 // The title a document carries is a sentence. The map shows the part that names it.
 export function shortTitle(title: string, max = 44): string {
   const cut = title.split(/[:;,]| because | which | and | so | -- /)[0].trim() || title;

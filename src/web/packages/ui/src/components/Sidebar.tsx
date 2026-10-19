@@ -1,5 +1,5 @@
 import { Search, X } from "lucide-react";
-import { TYPE_META, TYPE_ORDER, repoColor, tagCounts } from "../data";
+import { TYPE_META, TYPE_ORDER, repoColor, tagOptions } from "../data";
 import { useWs } from "../context";
 import type { Doc, Filters } from "../types";
 
@@ -11,7 +11,7 @@ export default function Sidebar({
   const toggle = (key: "repos" | "types" | "statuses", v: string) =>
     set({ ...filters, [key]: filters[key].includes(v) ? filters[key].filter((x) => x !== v) : [...filters[key], v] });
   const { statuses, priorities } = useWs();
-  const tags = tagCounts(docs).slice(0, 40);
+  const tags = tagOptions(docs, filters.repos, filters.tag);
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
