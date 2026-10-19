@@ -40,11 +40,16 @@
   :components
   (
    (:file "package")
+   ;; Before "workspace": INDEX-DOCUMENT writes to it.
+   (:file "changes")
    (:file "workspace")
    ;; After "workspace": the transition takes WITH-REPOSITORY-LOCK and calls
    ;; REINDEX-REPOSITORY, both defined there, and :SERIAL T is what makes the
    ;; macro available at compile time rather than only at load time.
    (:file "transition")
+   ;; After "transition": REQ-0080's text reads, writes and creations take
+   ;; RESOLVE-DOCUMENT and DOCUMENT-STORE-ENTRY from it.
+   (:file "document-edit")
    ;; After "transition": PREPARE-REPOSITORY reuses LINE-END and
    ;; WHITESPACE-CHAR-P to scan a manifest, and the plan-then-apply split it
    ;; follows is that file's.
@@ -101,6 +106,8 @@
    ;; claims off entities and never touches a filesystem.
    (:file "federate")
    (:file "transition")
+   ;; After "transition": it uses that file's fixtures.
+   (:file "document-edit")
    ;; After "transition": PREPARE-REPOSITORY reuses LINE-END and
    ;; WHITESPACE-CHAR-P to scan a manifest, and the plan-then-apply split it
    ;; follows is that file's.

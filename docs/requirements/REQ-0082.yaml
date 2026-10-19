@@ -1,0 +1,74 @@
+id: REQ-0082
+title: A TypeScript and TSX analyzer, so the 58 .ts and .tsx files of src/web are definitions in the index
+status: draft
+date: 2026-10-18
+refines: [REQ-0024]
+affects: [js-analyzer, analyzer-handles-p, find-analyzer, register-analyzer]
+importance: Major
+tags: [analyzer, typescript, tsx, web-ui, generality, req-0024, req-0080]
+summary: |
+  REQ-0024 left .ts and .tsx out of the JavaScript analyzer because the tree's
+  only .ts file was a vite config. src/web now holds 43 .ts and 15 .tsx files,
+  the whole of REQ-0080's interface, and no analyzer claims them. `find
+  DocPanel` returns no definition, and `impact` on a change to that component
+  reaches nothing.
+body: |
+  WHAT IS WRONG
+
+      src/web, measured 2026-10-18 with `status`
+        .ts files no analyzer claims                 43
+        .tsx files no analyzer claims                15
+        code entities produced from them              0
+        find TerminalPanel, find DocPanel      no definition; the string is
+                                               reported only as text, at the
+                                               import and the use
+
+  The reason for the omission is written in the docstring of JS-ANALYZER:
+  REQ-0024's WHAT THIS IS NOT says a parser that accepted TypeScript by
+  accident would produce entities with properties the ontology does not model,
+  and the one .ts file was a vite config. The second half no longer holds. The
+  first half is still a real constraint, and it is the reason this is a
+  requirement and not a one-line change to the extension list.
+
+  WHAT IT MUST PRODUCE
+
+  Everything REQ-0024 requires of a JavaScript file, for .ts and .tsx:
+
+    :FUNCTION for declarations, arrow functions bound to a name, methods, and
+    React components, which are functions.
+    :CLASS for classes.
+    :VARIABLE for module-level bindings.
+    :CALL-NAMES on each callable, and :IMPORTS edges from the module graph.
+
+  and a decision, made in a DES, on each of the following, none of which
+  JavaScript has:
+
+    interfaces, type aliases and enums   entities, or not indexed
+    type-only imports                    edges, or dropped
+    generics and decorators              ignored, or recorded
+    JSX in .tsx                          same treatment as JSX in .jsx
+    .d.ts                                indexed or excluded
+
+  Whatever the DES chooses, a construct the analyzer does not model is
+  recorded as unread on the :file entity and counted by `status`. It is never
+  guessed at. CON-0001.
+
+  WHAT IT MUST NOT DO
+
+  Add the extensions to JS-ANALYZER and stop. That is the accidental
+  acceptance REQ-0024 ruled out.
+
+  HOW IT IS KNOWN TO WORK
+
+  1. `status` reports 0 unclaimed .ts and .tsx files on this tree.
+  2. `find DocPanel --code` returns its definition in
+     src/web/packages/ui/src/components/DocPanel.tsx.
+  3. `impact` on a component lists the components that render it.
+  4. The vitest cases under src/web/packages/*/test, which already count as
+     tests for JavaScript trees, link to the units they call.
+  5. The index of a tree with no TypeScript is unchanged.
+
+  WHAT THIS IS NOT
+
+  Type checking. The analyzer reads syntax. `tsc` is the toolchain's answer,
+  and asking it is `enrich` (DES-0011), a separate step.

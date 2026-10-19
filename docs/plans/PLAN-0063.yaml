@@ -1,0 +1,46 @@
+id: PLAN-0063
+title: Build the CloudCLI plugin in five steps, licence first, then the repository, the adapter on a live CloudCLI, the checks inside its page and the acceptance run
+status: draft
+date: 2026-10-18
+refines: [DES-0058]
+tags: [cloudcli, plugin, adapter, req-0083, des-0058, future]
+summary: |
+  Sequences DES-0058. Nothing here is scheduled. It holds what PLAN-0062 S14 and
+  the CloudCLI parts of its S12 and S13 left undone when CloudCLI moved out of
+  REQ-0080. The spikes S1 and S3 of PLAN-0062 are already run and their results
+  are in REQ-0083.
+body: |
+  WORKING RULES
+
+  Each step ends with its tests passing. The work goes on a branch named after
+  REQ-0083 and merges to `develop` by pull request.
+
+  STEPS
+
+  S1  Licence. Read CloudCLI's NOTICE and plugin documentation and decide whether
+      a plugin repository may be MIT-licensed. Output: the answer, written into
+      REQ-0083's open question. If the answer is no, the plugin is not published
+      and the later steps stop.
+
+  S2  The `synoptik-cloudcli-plugin` repository: `manifest.json` at the root,
+      `src/index.ts` with `mount` and `unmount`, `src/server.ts` calling
+      `createHandler`, a pinned dependency on the `src/web` packages. Install it
+      from its git URL into a CloudCLI instance.
+
+  S3  The CloudCLI adapter on a live CloudCLI. Run `list` and `launch` against a
+      real instance, record what the WebSocket carries, and say in REQ-0083
+      whether status can be read from it. Output: the capabilities DES-0058 D4
+      claims, confirmed or corrected.
+
+  S4  The checks inside CloudCLI's page. CloudCLI's own tabs look the same with
+      the plugin enabled as disabled; the theme switch changes the Synoptik tab;
+      the 360 px browser test of PLAN-0062 S13 passes against the plugin build.
+
+  S5  Acceptance. Run REQ-0083's acceptance section, then `complete` this plan
+      with verdicts for DES-0058 and REQ-0083.
+
+  RISKS
+
+  S1 can say no. S3 can find that CloudCLI's API still offers no stop and no
+  running state, which leaves REQ-0083 R2 met as list and launch only, as the
+  design already says.

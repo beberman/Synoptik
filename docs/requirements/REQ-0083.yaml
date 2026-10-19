@@ -1,0 +1,118 @@
+id: REQ-0083
+title: The web UI runs inside CloudCLI as a plugin and drives CloudCLI's agents, moved out of REQ-0080 as future work
+status: draft
+priority: p3
+date: 2026-10-18
+refines: [REQ-0080]
+importance: Minor
+tags: [cloudcli, plugin, agents, adapter, shadow-dom, theme, mobile, future, req-0080, dec-0011, dec-0012]
+summary: |
+  REQ-0080 asked for the web UI to run standalone and inside CloudCLI. On
+  2026-10-18 the CloudCLI half moved here. The standalone UI, the agent host and
+  the terminal are REQ-0080's and are built. The plugin repository, the
+  CloudCLI adapter run against a live CloudCLI, and the checks inside CloudCLI's
+  page are not, and nothing is scheduled.
+body: |
+  WHY IT MOVED
+
+  REQ-0080's R21 gave agents a host of Synoptik's own, and R23 gave them a
+  terminal, because CloudCLI offers no stop route and no running state
+  (DES-0057 D20). That left CloudCLI as a second host for the same components,
+  with parts of 8 of REQ-0080's items depending on it and its plugin step
+  (PLAN-0062 S14) never started. Keeping them there made REQ-0080 `partial` for a feature
+  nobody is working on. This requirement holds them, and REQ-0080 no longer
+  depends on any of them.
+
+  WHAT IS ALREADY BUILT
+
+  Code written against these items stays in the tree and is not removed here:
+  `packages/agents/src/cloudcli.ts` and its tests, `mountInShadowRoot` in
+  `packages/ui`, and the CloudCLI settings read by `packages/server`. None of
+  it has run against a live CloudCLI. The measurements taken by spikes S1 and
+  S3 of PLAN-0062 on 2026-10-17 are under SETTLED below.
+
+  WHAT IS WANTED
+
+  R1  A CloudCLI host. CloudCLI imports the plugin as an ES module and calls
+      its `mount(container, api)` in its own page. `api.rpc` reaches the
+      plugin's Node subprocess, which runs the same `createHandler` as the
+      standalone listener (REQ-0080 R2). A CloudCLI credential is held by that
+      server, or kept as a CloudCLI plugin secret, and is never sent to the
+      browser. The plugin binds 127.0.0.1, as CloudCLI requires.
+
+  R2  The CloudCLI adapter. A module that drives CloudCLI over its REST API and
+      does not vendor or link CloudCLI's code. Which of the agent interface's
+      operations it implements is what that API offers, and is recorded in its
+      capabilities answer and not assumed.
+
+  R3  Style isolation. CloudCLI mounts a plugin into its own page with no
+      iframe, so a global stylesheet from the plugin would restyle CloudCLI and
+      CloudCLI's styles would restyle the plugin. The plugin renders inside a
+      shadow root it attaches to the container, with its stylesheet loaded into
+      that root and nowhere else. Dialogs, menus and tooltips render into the
+      same root and not into `document.body`. The styling framework is
+      Tailwind (DEC-0011), built so that its output works in a shadow root and
+      its reset applies nowhere else. A shadow root isolates style only: a
+      module plugin shares the host's DOM and is trusted code.
+
+  R4  Theme. The plugin reads `api.context.theme`, subscribes with
+      `api.onContextChange`, and switches between a dark and a light palette
+      without a reload. The theme in the plugin comes from CloudCLI and not
+      from the interface state REQ-0080 R17 keeps.
+
+  R5  Phone. A plugin tab works in CloudCLI's mobile view, with the 360 px
+      conditions of REQ-0080 R13 holding wherever the plugin draws.
+
+  R6  Agents inside CloudCLI. The plugin does not register the CloudCLI adapter
+      and does not show the standalone shell's agent views or offer launch and
+      stop, because CloudCLI's own session, launch and terminal features are
+      the agent surface there.
+
+  R7  A second adapter. Either, both or neither of the agent host (REQ-0080
+      R21) and the CloudCLI adapter can be configured behind one interface.
+
+  ACCEPTANCE
+
+  Install the plugin in a CloudCLI instance and check that CloudCLI's own tabs
+  look the same with the plugin enabled as with it disabled, and that toggling
+  CloudCLI between dark and light changes the Synoptik tab with it. Open the
+  tab on a 360 px viewport and see no horizontal scroll.
+
+  With the CloudCLI adapter configured on the standalone shell, launch a
+  session, watch its status, and stop another, within what the adapter's
+  capabilities answer says it can do.
+
+  SETTLED (spikes S1 and S3 of PLAN-0062, 2026-10-17)
+
+  - Tailwind in a shadow root: Tailwind 3 works, Tailwind 4 draws no shadows,
+    rings or gradients there, and `rem` is rewritten to `px` in the plugin
+    build (DEC-0011).
+  - CloudCLI's REST API, read from its source, lists sessions through
+    `GET /api/projects` with a JWT and starts a run through `POST /api/agent`
+    with an API key. It has no stop route and no running-state route. A run's
+    state is on its WebSocket, which is not documented. R2 therefore holds as
+    list and launch, with every session's status `unknown`, and stop, status
+    and approve unreported. Not run against a live CloudCLI.
+  - A CloudCLI 1.37.5 plugin tab is reachable on a 360 px phone once a project
+    is open: the tab bar shows the plugin's icon at 34 by 32 px, and the plugin
+    renders at the full 360 px with no horizontal scroll. CloudCLI's own tab
+    buttons are the same size, so REQ-0080 R13's 44 px does not hold for the
+    tab button, which CloudCLI draws.
+  - The loader installs from a git clone of a repository whose root holds
+    `manifest.json`, and accepts only `https://` or `git@` URLs, so a
+    subdirectory of this repository cannot be a plugin.
+
+  OPEN QUESTIONS
+
+  - Whether a CloudCLI plugin may be MIT-licensed. CloudCLI is
+    AGPL-3.0-or-later and Synoptik is MIT. A plugin is its own repository and
+    reaches Synoptik over HTTP; whether loading it into the AGPL host makes it a
+    derived work is not established, and CloudCLI's plugin documentation and
+    NOTICE should be read before the plugin is published.
+  - How the plugin repository gets the components. CloudCLI installs by shallow
+    clone and `npm install --ignore-scripts`, then `npm run build`, which can
+    run any code the repository holds. The plugin must therefore build the
+    components from a published package or a pinned source, and the build step
+    is part of what a user trusts.
+  - Whether CloudCLI gains a stop route or a documented WebSocket, which would
+    raise the adapter above list and launch.

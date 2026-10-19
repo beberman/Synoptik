@@ -51,7 +51,10 @@ directory as well as documents, and only the documents move into the store."
                                      ;; the placement tests below would pass
                                      ;; by never transitioning anything.
                                      (synoptik-docstore:make-memory-docstore
-                                      :terminal-p #'terminal-category-status-p))))
+                                      :terminal-p #'terminal-category-status-p
+                                      ;; REQ-0080: creating a document asks
+                                      ;; the store for the next id.
+                                      :category-prefix #'category-id-prefix))))
      (unwind-protect (progn ,@body)
        (uiop:delete-directory-tree ,root :validate t :if-does-not-exist :ignore))))
 

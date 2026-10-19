@@ -1,0 +1,50 @@
+id: BUG-0088
+type: bug
+title: A call in a JavaScript module-level initialiser, such as const emitter = mitt(), draws no edge, because the analyzer does not mint the :CALL-SITE entity DES-0014 designed for it
+status: open
+severity: major
+priority: p3
+date: 2026-10-19
+importance: Major
+refines: [REQ-0024]
+affects: [make-js-definition-entity]
+tags: [javascript, call-site, analyzer, call-graph, req-0024, des-0014]
+summary: |
+  The JavaScript analyzer writes :CALL-NAMES only onto callables, because a
+  :CALLS edge may not start at a :VARIABLE. The calls in a module-level
+  `const x = f()` are therefore dropped. REQ-0024 recorded this on 2026-08-14,
+  when 782 of front-end's 3486 definitions were variables. No other document
+  tracks it.
+body: |
+  PRIORITY: P3, 2026-10-19
+
+  A call graph with a known hole, found by writing the analyzer, and nothing
+  else depends on it being fixed soon.
+
+  OBSERVED
+
+  `make-js-definition-entity` in src/analyzer/js-analyzer.lisp passes
+  :call-names to a definition only where a :CALLS edge may legally originate.
+  The relationship's :FROM admits :function, :method, :test and :call-site.
+  A module-level `const emitter = mitt()` is a :variable, so MITT has no edge
+  from it, and `describe mitt` does not list the module that calls it. The
+  comment above that code says the same and names the follow-on as not yet
+  done.
+
+  Measured in REQ-0024, front-end, 2026-08-14: 782 of 3486 definitions were
+  variables. Not re-measured today. Whether `describe` on a callee used only
+  from an initialiser shows no caller is the check to repeat first.
+
+  CAUSE
+
+  An ontology rule that is right: an edge from a :variable would be an edge the
+  schema forbids. DES-0014 built the answer for a Lisp initform whose enclosing
+  form is not a legal source: a :CALL-SITE entity, minted exactly where a call
+  cannot be an edge from a definition, with an edge to each candidate. BUG-0017
+  applied it to Lisp and is closed. The JavaScript analyzer never mints one.
+
+  NOT FIXED HERE
+
+  Minting a :CALL-SITE for each call in a module-level initialiser, per
+  DES-0014. A recorded gap is the state until then (CON-0001), and
+  REQ-0024's OUTSTANDING section names it.

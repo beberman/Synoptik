@@ -389,3 +389,4 @@ body: |
   REQ-0025 R5 is narrowed (see CONSEQUENCES above). The narrowing was written
   into REQ-0025 before PLAN-0061, and REQ-0025 R7's note of 2026-10-11 records
   what this design delivered of it.
+importance: Major

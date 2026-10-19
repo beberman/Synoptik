@@ -1,0 +1,21 @@
+{
+  "name": "@synoptik/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "bin": {
+    "synoptik-ui": "dist/cli.js"
+  },
+  "dependencies": {
+    "@synoptik/agents": "*",
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "8.5.13"
+  }
+}

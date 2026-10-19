@@ -1,0 +1,50 @@
+id: BUG-0086
+type: bug
+title: src/web is 58 .ts and .tsx files that no analyzer claims, so find and impact are silent on the web UI
+status: open
+severity: major
+date: 2026-10-18
+importance: Major
+refines: [REQ-0082]
+affects: [js-analyzer]
+tags: [indexing, typescript, tsx, web-ui, stale-premise, req-0024]
+summary: |
+  The decision to leave .ts and .tsx out of the JavaScript analyzer rested on
+  the tree having one .ts file, a vite config. It now has 58. `status` counts
+  them as unclaimed, but `impact` on a change to the web UI reports an empty
+  set, which reads as a small change and is a missing index.
+body: |
+  OBSERVED
+
+  While adding fold and full-screen controls to the web UI on 2026-10-18:
+
+      tools/synoptik.sh 'find TerminalPanel'
+        Nothing matches "TerminalPanel" in Synoptik ... It occurs in the
+        text 2 times: App.tsx:11, App.tsx:229
+      tools/synoptik.sh 'find DocPanel'
+        Nothing matches ... It occurs in the text 3 times
+
+  `status` on the same tree: `unclaimed: 120 tracked files no analyzer claims
+  -- 43 .ts, 20 .json, 15 .tsx ...`. The `unclaimed` line is accurate. Nothing
+  connects it to the consequence: an agent asking `impact DocPanel` gets no
+  entity to start from and cannot tell "nothing depends on it" from "the
+  index cannot see it".
+
+  CAUSE
+
+  The js-analyzer class lists "js" "jsx" "mjs" "cjs". Its docstring gives the
+  reason for omitting .ts and .tsx as REQ-0024's WHAT THIS IS NOT and "front-
+  end's one .ts file is a vite config". Both the sentence and the tree it
+  described have been overtaken: src/web was added by REQ-0080.
+
+  NOT FIXED HERE
+
+  Supporting TypeScript needs a design (REQ-0082). Adding the two extensions
+  to the class is the change REQ-0024 ruled out.
+
+  WORTH DECIDING WITH REQ-0082
+
+  Whether `impact` and `describe` should say, when the name given occurs only
+  as text in files that are unclaimed, that the index cannot see those files.
+  The text fallback of `find` already finds the occurrences; it does not say
+  why they are not definitions.

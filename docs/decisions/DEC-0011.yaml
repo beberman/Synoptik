@@ -1,0 +1,57 @@
+id: DEC-0011
+title: src/web is styled with Tailwind, built so its CSS loads into a shadow root and its reset applies nowhere else
+status: accepted
+date: 2026-10-17
+supersedes: []
+refines: [REQ-0080]
+affects: []
+tags: [web, css, tailwind, shadow-dom, cloudcli, req-0080]
+decision: |
+  The owner decided this on 2026-10-17: "Select tailwind." The web UI's
+  components (REQ-0080 R1) are styled with Tailwind, under three rules.
+
+  1. The plugin host renders into a shadow root and loads the built stylesheet
+     into that root only (REQ-0080 R14). The standalone shell loads the same
+     stylesheet in the document.
+  2. Tailwind's global reset is not applied outside the shadow root, so the
+     plugin cannot restyle CloudCLI's page.
+  3. Overlay components, if Radix UI is used for them, are given the shadow
+     root as their portal container and not `document.body`.
+rationale: |
+  CloudCLI is a Tailwind application (its tree holds `tailwind.config.js`), its
+  plugins mount into the host page with no iframe, and the plugin security
+  page says module plugins share the host's DOM. A stylesheet loaded in the
+  document would cross that boundary in both directions. Tailwind's
+  breakpoint and size utilities cover REQ-0080 R13 without a second system.
+
+  Alternatives considered:
+
+    CSS Modules or vanilla-extract. Scoped by construction and no runtime. The
+    breakpoints, spacing scale and dark palette would be written by hand. Not
+    rejected on merit; it is the fallback if the spike below fails.
+
+    A component kit (MUI, Bootstrap, Chakra). These ship a global stylesheet or a
+    theme provider, which is what R14 forbids outside the root.
+
+  A shadow root is style isolation and not a security boundary. CloudCLI's
+  security page says module plugins can modify the host UI, and that plugins are
+  trusted code.
+
+  Cost and unverified points, to be settled by a spike that builds the plugin
+  both ways before any component is written. Tailwind reports `rem`-based sizes,
+  which follow the host page's root font size and not the shadow root's. Tailwind
+  4 emits `@property` rules, which are reported not to apply inside a shadow
+  root, and Tailwind 3 does not emit them, so the major version is open. Neither
+  point has been tested here.
+
+  Spike S1 result, 2026-10-17 (src/web/spikes/s1-shadow), in headless Chromium
+  and in CloudCLI 1.37.5 with the probe installed through CloudCLI's own route.
+  Tailwind 3.4.17 is chosen. Tailwind 4.1.11, adopted as a constructed
+  stylesheet in a shadow root, drew no `shadow-lg`, no `ring-2` and no
+  `bg-gradient-to-r`: each computed to `none`, in the page and in the Radix
+  dialog, at both host font sizes. Tailwind 3 drew all of them, and a Radix
+  dialog portalled into the root was styled and fixed-positioned. `rem` follows
+  the host: `w-16` measured 64 px at a 16 px host root and 80 px at 20 px. A
+  build step that rewrites `rem` to `px` held it at 64 px at both. CloudCLI's
+  root is 16 px, so the plugin build applies that rewrite and the standalone
+  shell does not need it.

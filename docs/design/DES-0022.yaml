@@ -444,22 +444,13 @@ body: |
 
   OUTSTANDING
 
-  S1 landed as PLAN-0022 and S2 as PLAN-0023. S3 and S4 have not started, and
-  the shell script half of S2 has not either.
-
-  S2's Synoptik half is done: PREPARE-REPOSITORY writes the directories, the
-  transcribed workflow concept, the skill, the CLAUDE.md pointer, the .mcp.json
-  registration and the manifest, plans every write before making one, and
-  refuses whole. D6's four open decisions are settled in PLAN-0023 -- one
-  manifest at .synoptik/manifest.yaml holding both the choices and the output, a
-  template maintained in this tree rather than generated from CON-0004, and the
-  endpoint as a parameter.
-
-  S2's script half is not. Finding or starting the service, registering the
-  worktree and doing R16's actual asking belong to a shell script, because D3
-  gives a script only what needs a terminal or a process -- and the command it
-  calls had to exist first. Nothing in the Synoptik half prompts, so the script has
-  something to drive.
+  Corrected 2026-10-19. This section said S3 and S4 had not started and the
+  script half of S2 had not either. All four stages have landed: S1 as
+  PLAN-0022, S2 as PLAN-0023, S3 as PLAN-0024, and S4 as the `remove` command in
+  src/process/console.lisp. The script half of S2 is tools/synoptik-init.sh.
+  REQ-0021's own OUTSTANDING section records how each of its requirements was
+  met. `init` has prepared game-server, front-end, lfia-accounting and
+  tenfactor, each with a .synoptik/manifest.yaml.
 
   One decision made during implementation and worth carrying: .mcp.json is
   create-only. JSON has no comment syntax, so no marker survives a parse, and
@@ -467,18 +458,11 @@ body: |
   already has one is told to add the synoptik server by hand -- a real gap, and the
   honest form of it.
 
-  S3, generated ARCH documents with provenance (R6, R7, R9). Depends on S2 for
-  somewhere to write and on S1 for what to write, and is the only stage that
-  needs an LLM in the loop. The constraint it exists to honour is already
-  enforceable: S1's report is data, so a generator can only render what was
-  measured.
+  D2's contradiction of REQ-0021 R1 was resolved by amending that requirement
+  on 2026-08-13 to say the workflow reaches the LLM and to leave the artifact to
+  the design.
 
-  S4, removal in two modes (R13, R13a, R13c). Depends on S2's manifest, which
-  is the mechanism R13 rests on -- REQ-0021 is explicit that inferring init's
-  output after the fact is not an acceptable substitute.
-
-  Also outstanding and not a stage: D2 contradicts REQ-0021 R1 in its letter,
-  and that requirement should be amended to say a skill rather than agent
-  definitions when S2 lands. Recorded in CONSEQUENCES and repeated here so the
-  amendment is not lost between now and then.
-
+  Still open, and the reason this document is `partial`: D2a. Whether one
+  narrow read-only reviewer agent is installed after all has no decision. An
+  agent definition can restrict tools and a skill cannot, so the reviewer is the
+  one role where a namespaced agent would buy an enforced property.

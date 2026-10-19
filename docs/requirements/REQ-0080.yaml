@@ -1,0 +1,336 @@
+id: REQ-0080
+title: A web UI shows the documents and their relationships, edits them in
+  place, and manages agents through an adapter interface, because the only
+  surfaces today are a console, a REST API and MCP
+status: partial
+priority: p1
+date: 2026-10-17
+refines: [REQ-0008, REQ-0021]
+affects: [handle-request, "*route-prefix*"]
+importance: Major
+tags: [ui, web, explorer, editor, create, responsive, mobile, css, theme, react, agents, adapter, rest, des-0006, dec-0001]
+summary: |
+  This asks for a browser UI over the existing REST routes with two parts: the
+  documents, their relationships and an editor, built as React components that
+  run standalone; and agent launch and status, which Synoptik reaches through
+  an interface other tools can implement. Running inside CloudCLI as a plugin
+  moved to REQ-0083 on 2026-10-18. CloudCLI has no concept of a document, so the
+  first part is what it lacks.
+
+body: |
+  PRIORITY: P1, 2026-10-19
+
+  Sequence: REQ-0008 is the surface this sits on. REQ-0021 R8 says an agent in a
+  prepared worktree reaches Synoptik through the service; the agent half of this
+  is the other direction, a person reaching agents from the service. REQ-0081
+  refines this one: accounts, pairing a host to a person, and a terminal with
+  an agent in it. The agent half here serves more than one person only once
+  that exists. The CloudCLI plugin and adapter (R2's second host, R10, R14, R15
+  and parts of R7, R13, R17 and R21) moved to REQ-0083, which is future work and
+  not in this requirement's scope.
+
+  WHAT IS WANTED
+
+  R1  The UI is a React application in `src/web/`, a directory beside the Lisp
+      systems and not a Lisp system. Its documents, relationships and editor
+      are components that reach the service through a client object they are
+      given -- a function from method, path and body to a response -- and not
+      through a URL they build or a global they read. One set of components
+      can then run in more than one host. They use the `/v1/` routes only, hold no
+      copy of the graph, and carry no logic that decides what a document means;
+      that stays in synoptik-knowledge.
+
+  R2  A Node server sits between the browser and the Synoptik REST API. The
+      browser calls only that server, which forwards a fixed list of
+      operations to the service and answers the agent calls itself. The same
+      server code is written so that a second host can run it (REQ-0083 is
+      CloudCLI's). The standalone host is a listener that serves the built UI
+      and the proxy together, so one command starts the UI. A credential the
+      server holds is never sent to the browser. A development mode may use a
+      separate dev server that proxies to the Node server.
+
+  R2a The proxy is the authentication boundary the Synoptik service lacks. It
+      listens on 127.0.0.1 by default. It listens on another address only when
+      a token is configured, requires that token on every request, and refuses
+      to start otherwise. It forwards only operations on an allow list that
+      excludes the repl tier and the lifecycle operations. A page whose server
+      answers 401 shows the banner "A bearer token is required" with an Add
+      token link. The link opens a box for the token, which the browser keeps
+      for later visits. The address form `#token=...` does the same.
+
+  R3  Explorer. A list and a map of every document in the workspace, filterable
+      by repository, by type (requirement, design, plan, bug, decision, review, architecture,
+      concept, rule), by status, by priority, by tag and by free text over id
+      and title, and a checkbox that leaves out documents filed under
+      `completed/`, off by default. The tag choices are alphabetical and are those
+      of the selected repositories. Filters combine. Each document is drawn as an icon for its type,
+      its id, and a short title. The title is the document's own, cut at a
+      length that fits the icon, and the full title shows on hover and on
+      selection.
+
+  R4  Connections. The map draws the documents that pass the filters and the
+      `refines` and `affects` links among them, with the link type on each
+      edge. A filter can be widened to include the documents connected to the
+      ones it matched, to a chosen number of links. Asking for the requirements
+      tagged `multi-user` and widening by two links shows those requirements,
+      the designs that refine them, and the documents those link to. A
+      reference that resolves to nothing is drawn and marked unresolved, as
+      `check` reports it, and not omitted. Selecting a document shows its
+      relationships grouped by edge type as `describe` groups them. Each name in
+      its `affects` list opens: a document jumps to that document, and code shows
+      its definition with its file and lines, from the service's `describe`. The
+      same links are on the references in the editor's check_document column,
+      where a code name switches to the relationships and opens there.
+
+  R5  Editing. Selecting a document opens it in an editor. The editor builds a
+      formatted view from the YAML: fields such as status, priority, tags and
+      `refines` as form controls, and the summary and body as structured text
+      with headings, paragraphs, numbered and bulleted lists, requirement items
+      such as R1 and R2, and code. It has no font, size, colour or other styling
+      control, because YAML holds none and a styling would be lost on save. It
+      has the usual editing tools: undo and redo, find and replace, keyboard
+      shortcuts, and a toggle to the raw YAML. A document opened and saved
+      without a change is byte-identical to the file, and a change alters only
+      the lines it touched. Before saving, the text goes through
+      `check_document` and the result is shown beside the editor. A save made
+      against a file that has changed since it was read is refused and shows
+      both versions. Files are truth (DEC-0001): the UI writes the file and the
+      index follows through the file monitor. It does not write to the graph.
+
+  R6  Status transitions use the existing path. `set-status` and `complete`
+      (REQ-0022) are offered as they are, including `complete`'s dry run, and
+      the UI does not compute what a transition needs.
+
+  R7  Agents are managed through an interface the UI defines and does not
+      implement for any one tool. The interface has these operations: list
+      sessions; launch a session given a repository, a task and optionally a
+      worktree; stop a session; read a session's status; subscribe to status
+      changes; and answer a request for approval where the tool supports one. A
+      tool that cannot do one of them says so in a capabilities answer, and the
+      UI hides what is not offered rather than showing a control that fails.
+
+  R8  A status is one of a fixed set: working, waiting for input, waiting for
+      approval, idle, finished, failed, unknown. An adapter that cannot tell
+      reports unknown. It does not guess a nearer state (CON-0001).
+
+  R9  One adapter reports what Synoptik can observe without any third-party
+      tool: sessions that have called `synoptik_context` or `synoptik_context_used`
+      (REQ-0036) and when. It implements list and status and declares the
+      rest unsupported.
+
+  R10 Moved to REQ-0083 R2: the adapter that drives CloudCLI.
+
+  R11 Launching and stopping an agent are writes. They go through the
+      service's tier check, and a read-only caller is not offered them, as MCP
+      already withholds `synoptik_context_used` from a read-only caller
+      (REQ-0032).
+
+  R12 The UI works against a service with no adapter configured. Documents,
+      relationships and editing do not depend on R7 to R11.
+
+  R13 The components are responsive and every view works on a phone. At a
+      360 px viewport width nothing scrolls horizontally except the editor's
+      own text and the relationship graph's canvas, controls are at least 44 px
+      square, and the document list, a document's relationships, the editor
+      and the status transitions are all usable by touch alone. The
+      relationship graph pans and zooms by touch and also offers the same
+      relationships as a list, since a dense graph is unreadable at that
+      width. This holds in every host the components run in.
+
+  R14 Styling is Tailwind (DEC-0011). Keeping a plugin's styles out of a host
+      page, with a shadow root, moved to REQ-0083 R3.
+
+  R15 The standalone shell follows the browser's `prefers-color-scheme`. A
+      plugin's theme moved to REQ-0083 R4.
+
+  R17 Workspace. The UI shows and changes the set of repositories the service
+      watches, which is the workspace. It lists each folder with its name, path,
+      state (indexing, ready or paused), document count and the commit it was
+      indexed at. It adds a folder, pauses and resumes one, reindexes one, and
+      removes one after a confirmation that says the index is dropped and no
+      file is deleted. Adding a folder is chosen from a list of folders the
+      server offers under roots an operator configured, and only a git
+      repository is accepted. With several folders the explorer shows every
+      document in one view, each card carries its repository, and a document is
+      identified by its repository and id because ids are per repository
+      (REQ-0073). A link that names another repository (`@repo/ID`) is drawn
+      across the map where it resolves and marked where it does not. This tree,
+      game-server, front-end and utils are all shown at once in the acceptance
+      run.
+
+      The workspace persists. The Node server keeps it in a configuration file
+      in a dot directory in the user's home, `~/.synoptik/web.json`, which holds
+      the folder roots offered for adding and the list of watched folders with
+      whether each is paused. Adding, removing, pausing and resuming a folder
+      update the file after the service accepts the change. At startup the
+      server calls `watch` for each listed folder, and `pause` for each paused
+      one, so the same workspace is back after a restart of the service, of the
+      server or of the machine. A listed folder that no longer exists is shown
+      as missing and is not removed. A missing file is an empty workspace, and
+      an unreadable one is reported and never overwritten.
+
+      The interface state persists too, in `~/.synoptik/ui-state.json`: the
+      filters, the list or map view, the theme in the standalone host, the
+      document that was open, and the eight documents last opened, which the
+      sidebar lists as recently opened. The next load, on any device that
+      reaches the same server, restores them. A recent document whose folder
+      was removed, or which no longer exists, is left out of the list.
+
+  R16 Creation. The UI creates a requirement or a bug and no other type. Designs,
+      plans, decisions, reviews and the rest are drafted by agents and reviewed
+      and edited here, so the UI offers no way to create them and the service
+      refuses to create one through this path. A new document takes its id from
+      the same allocator `tools/next-doc-id.sh` uses and starts from a template
+      with the required fields present and empty sections to fill in. The author
+      may name the documents it refines, chosen from the explorer's list.
+
+  R18 Changes made outside the editor. A document open in the editor is read
+      again when the service reports a new reading of it, pushed to the browser
+      and not asked for, and every few seconds while the page is in view if the
+      push is not connected. When the file changed
+      and the editor holds no unsaved edit, the new text replaces the old, a
+      notice says the file was changed outside the editor, and the person can
+      see the difference and go back to the text from before. When the editor
+      holds unsaved edits they are never replaced: the person is shown both
+      texts and chooses, as for a refused save. The editor can also show what
+      differs from the last commit and go back to it, which the Synoptik
+      service answers from git, because the Node server does not read files.
+
+  R19 Asking an agent. From a document, and from each reference that resolves to
+      nothing, the person can ask an agent to fix it. The UI writes the task,
+      naming the file, the references and what the index found, and the person
+      reads and edits it before it is sent. The agent edits the file in the
+      checkout the service watches. Several agents at once will each need a
+      worktree of their own and are not part of this requirement.
+
+  R20 Suggested fixes. For a reference that resolves to nothing, the UI offers
+      the entities the index holds under the name the reference ends in, as one
+      action that replaces the reference. Only the characters of that entry
+      change: a list written a name to a line stays that way. With no unsaved
+      edits the replacement is saved at once and the check runs again on the
+      text written; otherwise it is made in the editor and saved with the
+      rest. A name defined nowhere is reported as that, and is not guessed.
+
+  R21 An agent host. Agents run on the machine that holds the files, because
+      one that edits a file needs the file. A small program there, the agent
+      host, starts Claude Code, holds the model credentials in its own
+      environment and answers the web server over HTTP with a bearer token it
+      requires on every request. It offers the adapter interface of R8 to R10:
+      list, launch, stop, status, a stream of progress and approval where the
+      tool can ask. The web server reaches it through one adapter and never
+      holds a credential or reads a file. The host runs a session only in a
+      repository on its own list, one session at a time in each, with a spending
+      limit and a permission mode that lets it edit and nothing wider. Another
+      tool can sit behind the same interface as a second adapter (REQ-0083 R7
+      names CloudCLI's). Which person a host belongs to, and how the
+      web server knows who is asking, is REQ-0081.
+
+  R22 Replaced by REQ-0081 R7: the person signs in to the coding agent in a terminal on
+      the host, so the code relay below is not built. The text is kept as the
+      record of what was proposed.
+    
+
+  R23 A conversation with an agent, in a terminal on the page. The Agents panel
+      lists each agent host with the login it has, and offers a terminal
+      in each repository the host may run agents in. A document offers one
+      action that opens that terminal beside it, with the document named in the
+      first message, so the person can talk to the agent about the document
+      while reading it. The terminal is Claude Code's own interface, so the
+      person answers its permission prompts. It keeps running when the page
+      closes, and opening it again returns to the same conversation. One
+      repository has one terminal, and a headless run is refused while it is
+      open, because both would edit the same checkout. The agent's edits reach
+      the editor through R18. The terminal is opened only from this server's
+      own page. A terminal connection from any other page, or one without the
+      server's token when the server has one, is refused.
+
+  ACCEPTANCE
+
+  Open the standalone UI against the running service. Filter to requirements
+  tagged `multi-user` and widen by two links. See the requirements, the designs
+  that refine them and the documents those link to, each as an icon with its id
+  and a short title. Select REQ-0077 and see its `refines`
+  and `affects` links; follow one to REQ-0073.
+
+  Open REQ-0077 in the editor, save without a change, and see the file
+  unchanged. Edit its `priority`, see `check_document` report clean, save, and
+  see only that line changed on disk and the index follow. Change the file from
+  a terminal while the editor is open, save, and see the conflict refused with
+  both versions shown. Confirm the editor has no font, size or colour control.
+  Run a `complete` dry run from the UI and read the same text
+  `tools/synoptik.sh 'complete ...'` prints.
+
+  Add game-server, front-end and utils to the workspace beside this tree and see
+  all four in one explorer, each document labelled with its repository. Filter
+  to one repository and then to two. Pause one and see its documents remain,
+  marked stale. Remove one, confirm that no file on disk changed, add it again
+  and see its documents return. Try to add a folder that is not a git
+  repository and see it refused.
+
+  Create a new requirement and a new bug, each with the next free id and the
+  template's fields. Confirm there is no way to create a design, a plan or a
+  decision, and that a direct request to create one is refused.
+
+  With no adapter configured, every document view still works. With the native
+  adapter alone, see which sessions have queried Synoptik and when.
+
+  Open a document, and from a terminal change a line of its file. See the
+  editor take the new text, say so, show the changed lines, and go back to the
+  text from before. Do the same while holding an unsaved edit and see the edit
+  kept and both texts offered. Open a decision whose `affects:` names a function
+  that has since moved, see the file it is in now offered, choose it, and see
+  only that entry change on disk and the check report it resolved. Ask an agent
+  to fix an unresolved reference and read the task before it is sent.
+
+  Start the agent host on this machine with one repository, and have the web
+  server reach it with the token. Ask an agent to fix an unresolved reference
+  and see the session listed as working, the file change arrive in the editor,
+  and the session finish. Start a second session in the same repository and see
+  it refused. Ask for a repository that is not on the host's list and see it
+  refused. Stop a running session and see it stop. Call the host without its
+  token and see it refused.
+
+  Start the UI with `tools/synoptik-ui.sh start` and see the agent host start
+  with it. Open Agents and see Claude Code listed as logged in. Open a
+  document, choose the action that talks about it, and see a terminal open
+  beside it with Claude Code running in that repository and the document named.
+  Ask it to change one line of the document, approve the edit in the terminal,
+  and see the editor take the change. Close the page, open it again, and return
+  to the same conversation. Run `tmux ls` in an ordinary terminal and see the
+  same session. Try a headless launch in that repository and see it refused.
+  Connect to the terminal's address from a page of another origin and see it
+  refused.
+
+  OPEN QUESTIONS
+
+  - Cross-repository links wait on REQ-0073, which is a draft. Until it lands,
+    a reference such as `@game-server/REQ-0001` is unresolved, and the map shows
+    links inside each repository only.
+  - Phone access to the standalone host over the network. The Synoptik service
+    refuses any Host that is not loopback (DEC-0008) and has no credential, so
+    the Node server holds that boundary (R2a). Another machine reaches it with
+    the token over plain HTTP on a trusted network, as verified on 2026-10-19,
+    or over TLS or a tunnel the user provides, because plain HTTP sends the
+    token in the clear. INSTALL.md says how to start it for the network and does
+    not yet cover the WSL2 port forward or a tunnel. Which of those the project
+    supports is not settled.
+  - The native adapter has no source. The retrieval log's records name no
+    session, so it lists none and reports no status (DES-0057 D9). Hook events
+    or transcript files would be needed, and neither is read.
+  - Authentication for a UI on a listener that binds 127.0.0.1 by default and
+    that SECURITY.md already notes serves every local user on a shared machine.
+
+  OUTSTANDING
+
+  Not exercised at 2026-10-19, when the rest of the acceptance paragraph
+  passed:
+
+  - A phone, and TLS or a tunnel. A second computer on the same network
+    reached the page on 2026-10-19 over plain HTTP, through a Windows port
+    forward to WSL2 and a firewall rule, and entered the token in the banner's
+    box. The token crossed that network in clear. A phone at 360 px and an
+    HTTPS path (Tailscale or a tunnel) were not tried (R2a, R13).
+  - R4's unresolved-reference marking on the map. The acceptance sentence no
+    longer asks for it, because no document in the `multi-user` set holds one.
+  - Accounts, pairing and per-person hosts, which REQ-0081 asks for and
+    nothing builds.

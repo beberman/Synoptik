@@ -83,11 +83,17 @@ tools/synoptik.sh 'impact repository 3'
 tools/synoptik-test.sh
 ```
 
-**`tools/` operates Synoptik; `tools/test/` measures it.** Eight things run Synoptik --
-`synoptik.sh`, `synoptik-serve.sh`, `synoptik-install.sh`, `synoptik-init.sh`, `synoptik-test.sh`,
+**`tools/` operates Synoptik; `tools/test/` measures it.** Nine things run Synoptik --
+`synoptik.sh`, `synoptik-serve.sh`, `synoptik-ui.sh`, `synoptik-install.sh`, `synoptik-init.sh`, `synoptik-test.sh`,
 `next-doc-id.sh`, `doc-ids.py` and `allow-synoptik.py`, the permission hook --
 beside `js/` and `py/`, which are not tools at all: the analyzer loads
 `js/extract.js` and `py/extract.py` at runtime.
+
+`src/web/` is the browser UI (REQ-0080) and holds no Lisp: npm packages for a client, a
+proxy server and the React front end. `tools/synoptik-ui.sh start` runs the server on
+127.0.0.1:4790 in front of the service, and `cd src/web && npx vitest run` is its suite,
+which `tools/synoptik-test.sh` does not run. The workspace and the interface state are
+kept in `~/.synoptik/`.
 
 `tools/synoptik-install.sh` links `synoptik` and `synoptik-serve` onto `PATH` and calls
 `synoptik-serve.sh install` for the unit. Links, never copies: Synoptik is a source tree

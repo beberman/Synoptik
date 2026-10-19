@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.tsbuildinfo
+apps/standalone/src/fixture.json

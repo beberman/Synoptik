@@ -515,13 +515,40 @@ once, as it did before documents moved behind the store."
   `(let ((*tree-listing* (cons (namestring ,root) :unread)))
      ,@body))
 
+(defparameter *unwalked-directories* '("node_modules")
+  "Directory names the tree walk does not enter, at any depth. A dot-directory is
+never entered either, and needs no entry here. BUG-0084 measured why: front-end
+holds 112,141 files, 98,000 of them under node_modules, and one walk of it took
+6.8 seconds against 0.4 for the rest. BUG-0085 is the consequence of skipping by
+name, which is accepted.")
+
+(defun walk-tree (root)
+  "Every file pathname under ROOT, without entering a dot-directory or one named
+in *UNWALKED-DIRECTORIES*. A directory that is a symbolic link is not followed,
+which is what `**/' did and what keeps a link back up the tree from looping."
+  (let ((found '()))
+    (labels ((walk (directory)
+               (dolist (entry (directory (merge-pathnames "*.*" directory)))
+                 (if (pathname-name entry)
+                     (push entry found)
+                     (let ((here (pathname-directory directory))
+                           (there (pathname-directory entry)))
+                       (when (and (= (length there) (1+ (length here)))
+                                  (equal (butlast there) here))
+                         (let ((name (car (last there))))
+                           (unless (or (dot-prefixed-p name)
+                                       (member name *unwalked-directories* :test #'equal))
+                             (walk entry)))))))))
+      (walk (pathname root)))
+    (nreverse found)))
+
 (defun tree-listing (root)
-  "Every pathname under ROOT. Walked once per WITH-TREE-LISTING."
+  "Every pathname under ROOT that WALK-TREE finds. Walked once per WITH-TREE-LISTING."
   (let ((shared *tree-listing*))
     (cond ((not (and shared (string= (car shared) (namestring root))))
-           (directory (merge-pathnames "**/*.*" root)))
+           (walk-tree root))
           ((eq (cdr shared) :unread)
-           (setf (cdr shared) (directory (merge-pathnames "**/*.*" root))))
+           (setf (cdr shared) (walk-tree root)))
           (t (cdr shared)))))
 
 (defvar *terminal-status-p* nil
@@ -1008,6 +1035,7 @@ these bytes, so the store will not report them again."
            (setf (gethash address (repository-documents repository))
                  (cons (docstore-record-ref record) (docstore-record-version record)))
            (remhash address (repository-document-failures repository))
+           (note-document-change (repository-name repository) address :changed)
            t)
           (t
            (setf (gethash address (repository-document-failures repository))
@@ -1025,7 +1053,8 @@ these bytes, so the store will not report them again."
   (apply-transaction (repository-graph repository)
                      (list (retract-file address (repository-name repository))))
   (remhash address (repository-documents repository))
-  (remhash address (repository-document-failures repository)))
+  (remhash address (repository-document-failures repository))
+  (note-document-change (repository-name repository) address :removed))
 
 (defun index-all-documents (repository &key quiet)
   "Index every document the store holds. Returns how many were indexed.
@@ -1047,6 +1076,23 @@ is the one the next poll passes back."
            (document-read-failed repository (second change) (third change) quiet))))
       (setf (repository-docstore-token repository) token))
     indexed))
+
+(defun index-written-document (repository record text &key quiet)
+  "Index the one document RECORD names, which the store has just written as TEXT,
+and note its stamp in the token so the next poll does not read it again. T on
+success.
+
+POLL-DOCUMENTS asks the store what changed, and a file store answers by walking
+the tree. A write already holds the answer: the record is what the store
+returned, and TEXT is what it wrote. Asking again cost 20 seconds on a
+repository of 112,000 files (BUG-0084). Nothing else changed, because the write
+held the repository lock, and a file someone else changed meanwhile is still
+found by the next poll, which compares every stamp."
+  (prog1 (index-document repository record text :quiet quiet)
+    (let ((token (repository-docstore-token repository)))
+      (when (hash-table-p token)
+        (setf (gethash (docstore-record-address record) token)
+              (docstore-record-version record))))))
 
 (defun poll-documents (repository &key quiet)
   "Index what the store changed since the last token, retract what it removed,

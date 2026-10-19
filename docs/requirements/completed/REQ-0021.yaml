@@ -1,6 +1,6 @@
 id: REQ-0021
 title: Synoptik must be able to prepare a repository it did not write, deriving the architecture it can see and recording as gaps the parts it cannot
-status: partial
+status: implemented
 date: 2026-08-11
 refines: [CON-0004]
 affects: [register-document-type, document-type-for, documentation-relative-p,
@@ -747,6 +747,25 @@ body: |
                           requirement, unwritten -- see the note under R7.
     DES-0022 D2a          Whether one read-only reviewer agent is installed
                           after all, under STILL OPEN below.
+
+  REVISED 2026-10-19. `init` has prepared four repositories: game-server,
+  front-end, lfia-accounting and tenfactor. Each holds the manifest
+  `.synoptik/manifest.yaml` that init writes, and two of them (game-server,
+  front-end) had CLAUDE.md appended while the other two had it created. The
+  status is now `implemented`, with these things recorded and not done:
+
+    R7, source comments and prose structure   REQ-0084.
+    R11, what preparation cost and bought     Never scored. The evidence is
+                                              document counts and the workflow's
+                                              branch names, which show the
+                                              workflow was followed and not
+                                              that it helped.
+    DES-0022 D2a                              Whether to install one read-only
+                                              reviewer agent. No decision; the
+                                              design carries it and is
+                                              `partial` for it.
+    R10a, R15                                 REQ-0025's to deliver, and it is
+                                              a draft.
 
   The rest of this section is the record of how each requirement was met, kept
   because the reasoning is the part a later reader needs:

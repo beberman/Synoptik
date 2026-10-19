@@ -18,10 +18,12 @@ section says what each run proves and what it does not.
 | git | git | 2.43.0 | cloning, and Synoptik reads a tree's `.gitignore` through it. |
 | curl | curl | 8.5.0 | fetching the Quicklisp installer. |
 | python3 | python3 | 3.12.3 | the Python analyzer, optional. See "Without node or python3". |
-| node | nodejs | 18.19.1 and 24.18.1 | the JavaScript analyzer, optional. |
+| node | nodejs | 18.19.1 and 24.18.1 | the JavaScript analyzer, optional, on either version. The web UI needs 22 or later, which is 24.18.1 here and not Ubuntu's 18.19.1. See "The web UI". |
 | libyaml | libyaml-0-2 | 0.2.5 | the YAML reader, through CFFI. |
 | libssl | libssl3t64 | 3.0.13 | the HTTP server and client libraries, through CFFI. |
 | bubblewrap | bubblewrap | 0.9.0 | only tools/test/clean-room.sh. |
+| tmux | tmux | 3.4 | terminals in the web UI, optional. |
+| claude | none; see "The web UI" | 2.1.303 | the web UI's agent host, optional. |
 
 The operating system tested was Ubuntu 24.04.1 LTS under WSL2. On that release
 libssl3 has no installable package of its own: `apt-cache policy libssl3`
@@ -474,6 +476,104 @@ machine.
 
 Not run: the `synoptik_*` tools from a signed-in Claude Code session, a GPU, and
 what `complete` writes when the caller is not the service's account.
+
+## The web UI
+
+`src/web/` holds a browser interface (REQ-0080): a map and list of the
+documents in every watched repository, an editor for them, and agents that can
+be launched, and terminals that can be opened, from the page. It is Node code
+and the Lisp side needs nothing extra. The Node server forwards a fixed list of
+operations to the service and serves the page.
+
+### What it needs
+
+- **Node 22 or later.** `src/web/package.json` says so. Ubuntu's `nodejs` package
+  is 18.19.1, which is too old, so install a newer one, for example with nvm.
+  `tools/synoptik-ui.sh` runs in your shell, so the first `node` on your PATH is
+  the one used. This is unlike the JavaScript analyzer, which runs inside the
+  service and takes the `node` of the service's PATH (see "node: two versions").
+- **The service running** (`tools/synoptik-serve.sh`). The server replays the saved
+  workspace against it at startup.
+- **For the terminal and agents, optional:** `tmux`, `python3` and Claude Code
+  (`claude`) on the PATH, with `claude` signed in. Install tmux with `sudo apt
+  install tmux`, and sign in by running `claude` once in an ordinary terminal.
+  Without them the page works, and `start` says that the agent host was not started.
+
+### Start it
+
+    tools/synoptik-ui.sh start        # http://127.0.0.1:4790/
+    tools/synoptik-ui.sh status
+    tools/synoptik-ui.sh restart
+    tools/synoptik-ui.sh stop
+
+The first `start` runs `npm install --ignore-scripts` in `src/web/`, compiles the
+TypeScript packages, and builds the page with Vite. The page is not in the
+repository, so a checkout has no page until that build has run, and a server
+without it answers 404 for `/`. Later starts rebuild the page only when a source
+it is made from has changed. `src/web/` has its own tests, which
+`tools/synoptik-test.sh` does not run: `cd src/web && npx vitest run`.
+
+### Folders, agents and state
+
+The workspace (`web.json`), the interface state (`ui-state.json`), the logs and
+the agent host's token are in `~/.synoptik/`, or under `$SYNOPTIK_WEB_HOME`.
+Folders offered by Add folder are the directories under the `roots` in
+`web.json`, which is empty until you list some:
+
+    {"version": 1, "roots": ["/home/you/lisp"], "repositories": []}
+
+`start` also starts an agent host on 127.0.0.1:4795 when `claude` is on the PATH.
+It runs agents and terminals only in the git repositories the service watches at
+that moment, or in the directories of `SYNOPTIK_HOST_REPOS` (separated by `:`),
+so a repository added later needs `restart`. The server reaches the host with a
+token the script keeps in `~/.synoptik/agent-host.token`. `SYNOPTIK_UI_AGENTS=off`
+starts the server alone. A terminal is Claude Code in a tmux session, one per
+repository. `stop` leaves the sessions running, so a conversation survives a
+restart, and `tmux attach -t <name>` from an ordinary terminal joins it.
+
+### Reaching it from another machine
+
+The server listens on 127.0.0.1 only. To reach it from a phone or another
+computer, give it a token and an address that machine can reach:
+
+    SYNOPTIK_UI_HOST=0.0.0.0 SYNOPTIK_UI_TOKEN=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n') \
+      tools/synoptik-ui.sh restart
+
+Print the token again with `tr '\0' '\n' </proc/<pid>/environ | grep
+SYNOPTIK_UI_TOKEN`, where `<pid>` is the pid in `tools/synoptik-ui.sh status`. Or
+choose it yourself and keep it.
+
+The server refuses to start on any address but loopback without a token,
+because it forwards to a service that has no credential of its own. On the
+other machine, open `http://<address>:4790/`. The page shows "A bearer token is
+required" with an Add token link. Click it and type the token, which the browser
+keeps. Opening `http://<address>:4790/#token=<token>` does the same in one step.
+
+The token travels in clear over plain HTTP, and whoever holds it can open
+Claude Code in your repositories, which runs commands as you. Use it only on a
+network you trust, or put TLS or a tunnel in front: `tailscale serve --bg 4790`
+gives an HTTPS address that only your own devices reach.
+
+Under WSL2 with the default NAT networking, another machine cannot see WSL's
+address (`hostname -I`), so Windows has to pass the port on. Either set
+`networkingMode=mirrored` under `[wsl2]` in `C:\Users\<you>\.wslconfig` and run
+`wsl --shutdown`, or forward the port from an administrator PowerShell:
+
+    netsh interface portproxy add v4tov4 listenport=4790 listenaddress=0.0.0.0 connectaddress=<WSL address> connectport=4790
+    New-NetFirewallRule -DisplayName "Synoptik web UI 4790" -Direction Inbound -Protocol TCP -LocalPort 4790 -Action Allow -Profile Any -RemoteAddress LocalSubnet
+
+The WSL address changes when WSL restarts, so the forward has to be made again
+then. The other machine uses the Windows machine's address from `ipconfig`, not
+the WSL one. A connection that Windows classes as Public needs `-Profile Any`,
+which the line above has. Some routers stop devices on one network talking to
+each other, and then nothing here helps.
+
+This section was exercised on one machine, Ubuntu 24.04.1 under WSL2 with Node
+24.18.1, tmux 3.4 and Claude Code 2.1.303. A fresh checkout of the repository,
+run with `tools/synoptik-ui.sh start` on another port, answered 404 for the page
+until the launcher built it, and 200 after. A second computer on the same
+network reached the page through the port forward above and signed in with the
+token. A phone, and the HTTPS route, were not tried.
 
 ## Register it with Claude Code
 

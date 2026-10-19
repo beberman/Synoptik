@@ -776,6 +776,112 @@ or indexed. Pass contents to check a draft that is not on disk."
   (check-document-references (require-repository repository) path
                              :contents contents))
 
+;;;; ------------------------------------------------------------------
+;;;; Documents as text: REQ-0080, DES-0057 D1
+;;;; ------------------------------------------------------------------
+
+(defun document-listing-entry (entity)
+  "One document as the explorer lists it: what it says about itself, not its body."
+  (list :id (or (getp entity :doc-id) (name entity))
+        :type (string-downcase (symbol-name (entity-type entity)))
+        :category (getp entity :category)
+        :title (getp entity :title)
+        :status (getp entity :status)
+        :priority (getp entity :priority)
+        :severity (getp entity :severity)
+        :date (getp entity :date)
+        :tags (getp entity :tags)
+        :refines (getp entity :refines)
+        :affects (getp entity :affects)
+        :path (origin-file entity)))
+
+(defun repository-documents-listing (repository)
+  (let ((graph (repository-graph repository)))
+    (list :repository (repository-name repository)
+          :documents (loop for type in *document-types*
+                           append (mapcar #'document-listing-entry
+                                          (remove-if-not (lambda (entity) (document-held-p repository entity))
+                                                         (entities-of-type graph type)))))))
+
+(define-operation :documents :read ((repository))
+    "Every document with its id, type, title, status, priority, tags and the \
+documents it refines and affects. Without a repository, those of every repository."
+  (if repository
+      (repository-documents-listing (require-repository repository))
+      (list :repositories (mapcar #'repository-documents-listing (all-repositories)))))
+
+(defun text-result (report)
+  "REPORT as an answer, or a MALFORMED-REQUEST naming every problem it carries."
+  (let ((problems (getf report :problems)))
+    (if problems
+        (error 'malformed-request :message (format nil "~{~a~^~%~}" problems))
+        report)))
+
+(define-operation :read-document :read (repository document)
+    "The text of one document and a version to write it back with."
+  (text-result (read-document-text (require-repository repository) document)))
+
+(define-operation :write-document :write (repository document text version)
+    "Replace a document's text. Version is the one the read returned; a text \
+that changed since is refused with 409 and the stored text. Answers the \
+reference check of what was written."
+  (let* ((repository (require-repository repository))
+         (report (write-document-text repository document text version)))
+    (when (getf report :conflict)
+      (error 'version-conflict
+             :message (format nil "~a changed after it was read. Nothing was written."
+                              (getf report :address))
+             :current (list :text (getf report :text) :version (getf report :version))))
+    (let ((report (text-result report)))
+      (list :address (getf report :address)
+            :changed (or (getf report :changed) *json-false*)
+            :version (getf report :version)
+            :check (check-document-references repository (getf report :address)
+                                              :contents (getf report :text))))))
+
+(define-operation :suggest-fixes :read (repository document (text))
+    "For each reference a document declares that resolves to nothing, the code \
+entities the index holds under the name it ends in: where something that moved \
+now is. Pass text to ask about a draft that is not saved."
+  (text-result (reference-suggestions (require-repository repository) document :text text)))
+
+(define-operation :changes :read ((after) (epoch) (wait))
+    "Which documents the index has read since the sequence number AFTER, waiting \
+up to WAIT seconds (at most 30) for one. Answers :sequence to ask after next and \
+:epoch to send back with it; :reset true means read everything again. With no \
+AFTER it answers the present sequence at once. A long poll: it holds a worker \
+thread while it waits, and reads no repository."
+  (let ((report (document-changes-after
+                 (and after (request-integer after "after"))
+                 (and epoch (request-integer epoch "epoch"))
+                 :wait (if wait (request-integer wait "wait") 0))))
+    (list :epoch (getf report :epoch)
+          :sequence (getf report :sequence)
+          :reset (or (getf report :reset) *json-false*)
+          :changes (getf report :changes))))
+
+(define-operation :committed-document :read (repository document)
+    "The text git holds for a document at HEAD, with a version to write it back \
+with: what an edit is undone to when no earlier text is at hand."
+  (text-result (committed-document-text (require-repository repository) document)))
+
+(defun refines-list (refines)
+  "REFINES as a list of names: a JSON array, or one string split at commas and spaces."
+  (etypecase refines
+    (null nil)
+    (list (mapcar #'princ-to-string refines))
+    (string (loop with start = 0
+                  for end = (position-if (lambda (c) (find c ", ")) refines :start start)
+                  for word = (subseq refines start end)
+                  when (plusp (length word)) collect word
+                  while end do (setf start (1+ end))))))
+
+(define-operation :create-document :write (repository category title (refines))
+    "Create a requirement or a bug (category req or bug) and answer its id and \
+text. Any other category is refused. Refines is a JSON array or comma-separated."
+  (text-result (create-document (require-repository repository) category title
+                                :refines (refines-list refines))))
+
 (define-operation :context-used :write (record used)
     "Record what an agent went on to use for a context call, quoting the \
 identifier that call returned. `used' is a JSON array of {name, how}."

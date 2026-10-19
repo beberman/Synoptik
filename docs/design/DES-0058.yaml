@@ -1,0 +1,79 @@
+id: DES-0058
+title: The CloudCLI plugin is its own repository over the web packages, rendered in a shadow root, with an adapter that lists and launches
+status: draft
+priority: p3
+date: 2026-10-18
+refines: [REQ-0083, DEC-0011, DEC-0012]
+tags: [cloudcli, plugin, shadow-dom, theme, adapter, req-0083, des-0057, dec-0011, dec-0012]
+summary: |
+  The parts of DES-0057 that serve only CloudCLI: the plugin repository (D4),
+  the plugin's route out of the browser (D5), the shadow root and theme (D7),
+  the CloudCLI adapter (D10), the CloudCLI part of D11 and the phone path
+  through CloudCLI (D13). They moved here when REQ-0080's CloudCLI items moved
+  to REQ-0083. The text is DES-0057's as of 2026-10-17, unchanged in substance.
+body: |
+  PLUGIN REPOSITORY
+
+  D1  The CloudCLI plugin is not in `src/web/`. CloudCLI reads `manifest.json`
+      from the root of the repository it clones, so the plugin is the repository
+      `synoptik-cloudcli-plugin`. Its `package.json` depends on `packages/ui`,
+      `packages/client` and `packages/server` at a pinned git tag. Its
+      `src/index.ts` exports `mount` and `unmount`, and its `src/server.ts` calls
+      `createHandler` and prints the ready line CloudCLI waits for. CloudCLI runs
+      `npm install --ignore-scripts` and then `npm run build`, so the build step
+      is the only code of ours that runs at install. Rejected: putting it in
+      `src/web/`, since CloudCLI clones a URL and reads a root manifest and its
+      manifest page mentions no subdirectory install.
+
+  D2  The plugin's Client wraps `api.rpc`, which reaches the plugin's Node
+      server, which is the same `createHandler` the standalone listener calls
+      (DES-0057 D5, D6). The plugin has no URL to the service, so components
+      receive a Client and never build one. A CloudCLI credential is read from
+      the server's configuration or from a CloudCLI plugin secret and is never
+      sent to the browser. The plugin server binds 127.0.0.1, as CloudCLI
+      requires, and CloudCLI authenticates the browser before it proxies.
+      Through CloudCLI the phone reaches CloudCLI's own server and the plugin
+      server calls Synoptik from the same machine.
+
+  STYLE
+
+  D3  `mountInShadowRoot` attaches a shadow root to the container, adds the
+      built stylesheet to it as a constructed stylesheet, renders the
+      components into it, and gives overlay components the root as their portal
+      container. The theme is a `data-theme` attribute on the root's wrapper
+      element: the plugin sets it from `api.context.theme`. Spike S1 settled
+      DEC-0011's two open points: Tailwind 3 is used because Tailwind 4 draws no
+      shadows, rings or gradients in a shadow root, and the plugin build rewrites
+      `rem` to `px` because `rem` follows the host's root font size.
+
+  AGENTS
+
+  D4  The CloudCLI adapter runs in the Node server and calls CloudCLI's REST API at
+      an address and with credentials the server's configuration holds
+      (`SYNOPTIK_CLOUDCLI_URL`, `_TOKEN`, `_API_KEY`). The browser sees none of
+      them. CloudCLI's source (spike S3, read 2026-10-17) offers two routes that
+      serve this. `GET /api/projects` with a JWT lists each project's sessions
+      with id, provider, summary, last activity and message count, which gives
+      `list`. `POST /api/agent` with an API key made in CloudCLI starts a run
+      from a project path and a message, which gives `launch`, and with
+      `stream: false` it answers when the run ends. The server therefore answers
+      a launch with 202 at once and keeps the outcome in a list of the last 20
+      launches. There is no abort route and no running-state route: a run's
+      state is on CloudCLI's WebSocket, whose messages are not documented. So
+      the adapter reports `list` and `launch` only, and every session it lists
+      has status `unknown`. It has not been run against a live CloudCLI. Inside
+      the CloudCLI host the plugin does not register this adapter: the host's own
+      session views are the agent surface, and the plugin does not offer launch
+      and stop, since CloudCLI does.
+
+  TESTS
+
+  D5  The shadow-root points of D3 are checked by a spike before any component
+      is written, as DES-0057 D12 required; spike S1 did. The plugin half of
+      REQ-0083's acceptance is run in a local CloudCLI instance.
+
+  OUTSTANDING
+
+  CloudCLI's launch route has not been run against a live CloudCLI. How a plugin
+  tab behaves in a CloudCLI newer than 1.37.5 is not known. Whether the plugin
+  loader accepts a monorepo subdirectory after all was answered no for 1.37.5.

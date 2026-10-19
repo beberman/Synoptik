@@ -1,6 +1,6 @@
 id: REQ-0062
 title: find must be able to return only code or only documentation, because a noun like `repository` names 20 definitions and 3053 prose lines and the caller cannot say which kind they want
-status: partial
+status: implemented
 date: 2026-08-29
 amended: 2026-09-10
 refines: [REQ-0054]
@@ -83,7 +83,8 @@ body: |
       added there, because a switch nobody is told about is a switch nobody
       types.
 
-  R5  The occurrence band's trigger is the term's character, not the hit count.
+  R5  REFUSED 2026-09-11, not built; see OUTSTANDING and DES-0049 D3. The
+      occurrence band's trigger is the term's character, not the hit count.
       Firing only at zero hits means a term that is mostly prose and incidentally
       also a definition name gets the answer for the definition and none of the
       prose -- and gives it with the confidence of a match. A small hit count on
@@ -103,18 +104,18 @@ body: |
   --documentation` returns the documents that Synoptik holds about repositories --
   or, if `find` still matches on name, says plainly that it matched no document
   *named* "repository" and points at `context` for the by-subject question.
-  `find @Synoptik repository index` -- two words, no leading dash -- either answers
-  as a two-term search or refuses with a sentence naming the type positional,
-  and does not present 3053 occurrence lines as a result.
+  `find @Synoptik repository index` -- two words, no leading dash -- reads `index`
+  as the type. It prints "Nothing matches" and then the places the string is
+  written, headed "Not definitions", with its count, so it does not read as a
+  result set. It does not answer as a two-term search or name the type
+  positional.
 
-  `find @Synoptik severity` returns its 2 definitions *and* says the string is
-  written 48 times elsewhere, naming the files. `find @Synoptik complete-plan`
-  returns its definition and does not, because its occurrences are that
-  definition's own call sites and the documents that name it.
+  `find @Synoptik severity` returns its definitions and does not report the
+  other places the string is written. That is R5, which was refused.
 
   OUTSTANDING
 
-  R5 is refused, not built. The occurrence band still fires only on a zero-hit
+  R5 is refused, not built (2026-09-11). The occurrence band still fires only on a zero-hit
   find, so `find severity' answers with its definitions and says nothing about
   the 48 other places the string is written. DES-0049 D3 has the measurement
   that refused it: a 30ms tree scan on the cheapest command in the system, and
