@@ -2,7 +2,7 @@ id: REQ-0081
 title: More than one person signs in to the web UI, and each opens a terminal
   running an agent on the machine that holds the files, as their own account
   there
-status: draft
+status: accepted
 priority: p2
 date: 2026-10-18
 refines: [REQ-0080]
