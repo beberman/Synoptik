@@ -1,6 +1,7 @@
 #!/bin/bash
 # Start and stop the web UI's Node server: the proxy to the Synoptik service and
-# the static build of src/web/apps/standalone. REQ-0080, DES-0057 D6.
+# the static build of src/web/apps/standalone, which `start` builds when it is
+# missing or out of date. REQ-0080, DES-0057 D6.
 #
 #   tools/synoptik-ui.sh start      build if needed, then run in the background
 #   tools/synoptik-ui.sh stop
@@ -38,6 +39,13 @@ build() {
   command -v node >/dev/null || { echo "node is not on PATH; the web UI needs Node 22 or later." >&2; exit 1; }
   [ -d "$web/node_modules" ] || (cd "$web" && npm install --ignore-scripts --silent) || exit 1
   (cd "$web" && npx tsc -b packages/client packages/agents packages/server packages/agent-host) || exit 1
+  # The page is a Vite build that is not in the repository. Build it when it is
+  # missing or any source it is made from is newer.
+  page="$web/apps/standalone/dist/index.html"
+  if [ ! -f "$page" ] || [ -n "$(find "$web/packages/ui/src" "$web/packages/client/src" "$web/apps/standalone/src" "$web/apps/standalone/index.html" -type f -newer "$page" -print -quit)" ]; then
+    echo "building the page..."
+    (cd "$web/apps/standalone" && npm run build --silent) || exit 1
+  fi
 }
 
 alive() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
