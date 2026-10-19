@@ -267,6 +267,40 @@ body: |
       check, which is not replaced by file notifications: 1.8 s measured from
       writing a file to the editor's notice, with one read of the document.
 
+  D20 The agent host (`src/web/packages/agent-host`). Four considered: CloudCLI
+      alone, Node starting `claude` itself, the Synoptik service starting it,
+      and a host of our own. CloudCLI gives no stop and no running state, is
+      AGPL and a whole application. Node starting it would need Node and the
+      files on one machine, which the web server does not assume. The service
+      starting it would give the knowledge service the power to run commands.
+      So the host is its own small Node program, started on the machine with
+      the files. It runs `claude -p <task> --output-format stream-json
+      --permission-mode acceptEdits --permission-prompts none --max-budget-usd N`
+      in the repository, with the tools it may use named on the command line, and
+      reads the stream: the first event carries the tool's session id, the last
+      says how the run ended. Status is `working` while the process runs, then
+      `finished`, `failed` or `idle` after a stop. `approve` is not offered:
+      with prompts answered by nobody an action that would ask is refused, which
+      is the safe reading until the host can answer prompts. The routes, under
+      `/host/v1/`: `GET capabilities`, `GET sessions`, `POST sessions`
+      {repository, task} answering 202 and the session, `GET sessions/{id}`,
+      `POST sessions/{id}/stop`, `GET sessions/{id}/events` as server-sent
+      events. Every route needs `Authorization: Bearer`, compared in constant
+      time, and the host will not start without a token or bind beyond loopback
+      without one. A repository must be a git repository named at start, by its
+      real path; a request names it by that path and anything else is 403.
+      One running session per repository (409), because two agents in one
+      checkout overwrite each other until each has a worktree. The credentials
+      are the process's environment and the tool's own login; the host does not
+      read, log or return them. Sessions are kept in memory, the last 50, and a
+      restart forgets them. `HostAdapter` in `packages/agents` implements
+      AgentController against these routes, so the web server's agent routes
+      and the interface do not change, and CloudCliAdapter stays beside it.
+      Signing in from the page (R22) adds `POST auth/login` and
+      `POST auth/code` to the host later: the host runs `claude auth login`,
+      returns the address it prints, and writes the pasted one-time code to the
+      process; the web server forwards both and stores nothing.
+
   THE EDITOR
 
   D14 The editor opens a document from `read-document`. The YAML is parsed with a

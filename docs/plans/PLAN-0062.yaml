@@ -197,6 +197,20 @@ body: |
       references and the candidates, shown for editing, and sent through the
       adapter that can launch. With none, the dialog says so and does not send.
 
+  S19 The agent host (R21). `packages/agent-host`: the routes, the bearer check,
+      the repository list, one session per repository, a runner that starts
+      `claude -p` and reads its stream, and a fake runner for tests.
+      `HostAdapter` in `packages/agents`, registered by
+      `SYNOPTIK_AGENT_HOST_URL` and `SYNOPTIK_AGENT_HOST_TOKEN`.
+      `tools/synoptik-ui.sh host start|stop|status`. Tests: the host against a
+      fake runner over HTTP, the stream parser on recorded lines, the adapter
+      against the real host. One live run on this machine, as the
+      acceptance section describes.
+
+  S20 Signing in from the page (R22), after S19 has run for real: the two host
+      routes, a panel in Agents that shows the address and takes the code, and a
+      test that the web server stores neither.
+
   S14 The `synoptik-cloudcli-plugin` repository: `manifest.json` at the root,
       `src/index.ts` with `mount` and `unmount`, `src/server.ts` calling
       `createHandler`, a pinned dependency on the `src/web` packages. Install it
