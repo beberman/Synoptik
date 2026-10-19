@@ -2,7 +2,7 @@ id: REQ-0080
 title: A web UI shows the documents and their relationships, edits them in
   place, and manages agents through an adapter interface, because the only
   surfaces today are a console, a REST API and MCP
-status: draft
+status: partial
 priority: p1
 date: 2026-10-17
 refines: [REQ-0008, REQ-0021]
@@ -17,7 +17,6 @@ summary: |
   moved to REQ-0083 on 2026-10-18. CloudCLI has no concept of a document, so the
   first part is what it lacks.
 
-  The lisp knowledge engine for Synoptik will not provide agent management. This is done separately through a different node process that warps the LLM apis and will be compatible with ClaudeCLI
 body: |
   PRIORITY: P2, 2026-10-17
 
@@ -68,8 +67,8 @@ body: |
       `refines` and `affects` links among them, with the link type on each
       edge. A filter can be widened to include the documents connected to the
       ones it matched, to a chosen number of links. Asking for the requirements
-      tagged `multi-user` and widening by two links shows those requirements
-      and the designs and plans that refine them, and what refines those. A
+      tagged `multi-user` and widening by two links shows those requirements,
+      the designs that refine them, and the documents those link to. A
       reference that resolves to nothing is drawn and marked unresolved, as
       `check` reports it, and not omitted. Selecting a document shows its
       relationships grouped by edge type as `describe` groups them.
@@ -217,21 +216,13 @@ body: |
       names CloudCLI's). Which person a host belongs to, and how the
       web server knows who is asking, is REQ-0081.
 
-  R22 Replaced by REQ-0081 R7: the person signs in to Claude in a terminal on
+  R22 Replaced by REQ-0081 R7: the person signs in to the coding agent in a terminal on
       the host, so the code relay below is not built. The text is kept as the
       record of what was proposed.
-      Signing in from the page (not yet built). The person with no shell on the
-      host's machine can sign in to Claude from the web page. The host starts
-      the tool's own sign-in, hands the page the address it prints, and takes
-      back the one-time code the person copies from Anthropic's page. The web
-      server forwards both and keeps neither. The credential the sign-in
-      produces is written by the tool on the host's disk and is never sent
-      anywhere. Until this exists, signing in is `claude auth login` or
-      `ANTHROPIC_API_KEY` on the host, done once when the repositories are
-      cloned there.
+    
 
   R23 A conversation with an agent, in a terminal on the page. The Agents panel
-      lists each agent host with the Claude login it has, and offers a terminal
+      lists each agent host with the login it has, and offers a terminal
       in each repository the host may run agents in. A document offers one
       action that opens that terminal beside it, with the document named in the
       first message, so the person can talk to the agent about the document
@@ -247,9 +238,9 @@ body: |
   ACCEPTANCE
 
   Open the standalone UI against the running service. Filter to requirements
-  tagged `multi-user` and widen by two links. See the designs and plans that
-  refine them, each as an icon with its id and a short title, and find an
-  unresolved reference marked as such. Select REQ-0077 and see its `refines`
+  tagged `multi-user` and widen by two links. See the requirements, the designs
+  that refine them and the documents those link to, each as an icon with its id
+  and a short title. Select REQ-0077 and see its `refines`
   and `affects` links; follow one to REQ-0073.
 
   Open REQ-0077 in the editor, save without a change, and see the file
@@ -317,3 +308,15 @@ body: |
     or transcript files would be needed, and neither is read.
   - Authentication for a UI on a listener that binds 127.0.0.1 by default and
     that SECURITY.md already notes serves every local user on a shared machine.
+
+  OUTSTANDING
+
+  Not exercised at 2026-10-19, when the rest of the acceptance paragraph
+  passed:
+
+  - A phone reaching the page over a real network. The token and TLS or tunnel
+    path was driven on loopback only (R2a, R13).
+  - R4's unresolved-reference marking on the map. The acceptance sentence no
+    longer asks for it, because no document in the `multi-user` set holds one.
+  - Accounts, pairing and per-person hosts, which REQ-0081 asks for and
+    nothing builds.
