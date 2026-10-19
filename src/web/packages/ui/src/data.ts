@@ -104,7 +104,11 @@ export function edgesOf(docs: Doc[], known: Doc[] = docs): Edge[] {
   return out;
 }
 
+/** A document filed in a `completed/` directory, which `complete` and `set-status` move it to. */
+export const isCompleted = (d: Doc) => /(^|\/)completed\//.test(d.path);
+
 export function matches(d: Doc, f: Filters): boolean {
+  if (f.hideCompleted && isCompleted(d)) return false;
   if (f.repos.length && !f.repos.includes(d.repo)) return false;
   if (f.types.length && !f.types.includes(d.type)) return false;
   if (f.statuses.length && !f.statuses.includes(d.status)) return false;
