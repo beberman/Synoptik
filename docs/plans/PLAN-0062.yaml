@@ -115,12 +115,14 @@ body: |
       passes `check-document`.
 
   S5  Registry operations in `src/serve/operations.lisp`: `documents`,
-      `read-document`, `write-document`, `create-document`, and `context-log`
-      once S12's native adapter needs it and a record is known to carry what it
-      must. `write-document` answers the `check-document` result for the text it
-      wrote. The MCP tool-set assertion in `src/mcp/test/tools.lisp` and the REST
-      route check are updated, and `mcp-manifest.json` is regenerated with
-      `tools/mcp-manifest.py`. `write-document` and `create-document` are :write
+      `read-document`, `write-document` and `create-document`. `context-log` is not built: a
+      retrieval record names no session (DES-0057 D9). `write-document` answers the `check-document` result for the text it
+      wrote. The four are on REST only: MCP lists its tools by hand
+      (`src/mcp/tools.lisp`) and an agent edits the file in its worktree, so the
+      MCP tool set, its test and `mcp-manifest.json` do not change. A write made
+      from a stale version signals `version-conflict`, which REST answers as 409
+      with the stored text and version under `current`. `write-document` and
+      `create-document` are :write
       tier. Tests include a 409 body carrying the current version and text.
 
   THE NODE HALF
@@ -177,6 +179,38 @@ body: |
       scroll and controls of at least 44 px for every view, and the graph's list
       form. Repeat against the plugin build.
 
+  S16 Changes made outside the editor (R18). The service logs what it indexes and
+      `changes` long-polls it; the Node server streams that on `/api/events`; the
+      editor reads the open document when an event names it, or on a timer when
+      the stream is down, takes an outside change when nothing is unsaved, keeps the text
+      from before, and shows a line diff with a way back; unsaved edits open the
+      refused-save dialog. `committed-document` answers git's text for the
+      other way back. Tests: `diff.test.ts`, the Lisp tests for the operation,
+      and the browser run (an outside write, the diff, going back).
+
+  S17 Suggested fixes (R20). `suggest-fixes` on the service; `replaceItem` in
+      yamlEdit.ts, tested for layout and quoting; the check column offers each
+      candidate and saves the replacement when nothing else is unsaved. The
+      browser run moves a function between files and uses the offer.
+
+  S18 Asking an agent (R19). The task text is built from the unresolved
+      references and the candidates, shown for editing, and sent through the
+      adapter that can launch. With none, the dialog says so and does not send.
+
+  S19 The agent host (R21). `packages/agent-host`: the routes, the bearer check,
+      the repository list, one session per repository, a runner that starts
+      `claude -p` and reads its stream, and a fake runner for tests.
+      `HostAdapter` in `packages/agents`, registered by
+      `SYNOPTIK_AGENT_HOST_URL` and `SYNOPTIK_AGENT_HOST_TOKEN`.
+      `tools/synoptik-ui.sh host start|stop|status`. Tests: the host against a
+      fake runner over HTTP, the stream parser on recorded lines, the adapter
+      against the real host. One live run on this machine, as the
+      acceptance section describes.
+
+  S20 Signing in from the page (R22), after S19 has run for real: the two host
+      routes, a panel in Agents that shows the address and takes the code, and a
+      test that the web server stores neither.
+
   S14 The `synoptik-cloudcli-plugin` repository: `manifest.json` at the root,
       `src/index.ts` with `mount` and `unmount`, `src/server.ts` calling
       `createHandler`, a pinned dependency on the `src/web` packages. Install it
@@ -188,6 +222,16 @@ body: |
       game-server, as the memory on dogfooding requires, then `complete`
       PLAN-0062 with verdicts for DES-0057 and REQ-0080. A requirement item the
       run does not meet makes REQ-0080 `partial` with an OUTSTANDING section.
+
+      Measured so far (2026-10-17, through the running service): all 489
+      workflow documents of this tree, game-server, front-end, utils and
+      lfia-accounting were read and saved unchanged; none differed from the
+      file on disk and none was written. game-server holds two files with the id
+      BUG-0004, `docs/bugs/BUG-0004.yaml` and `docs/bugs/completed/BUG-0004.yaml`;
+      the service refuses to read either by id and says so, which is the right
+      answer and a defect in that tree. A browser run (`src/web/e2e/run.mjs`)
+      adds a folder, edits, hits a conflict, creates, checks 44 px targets at
+      360 px and removes the folder, in a scratch repository. Not yet done: S14, a phone over a real network, and the acceptance run's remaining items.
 
   RISKS
 

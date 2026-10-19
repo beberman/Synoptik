@@ -35,38 +35,47 @@ body: |
   WHAT THE SERVICE LACKS
 
   D1  Four operations. Each is a `define-operation` in
-      `src/serve/operations.lisp`, which gives REST a route and MCP a tool
-      without touching either (DES-0006 R5).
+      `src/serve/operations.lisp`, which gives REST a route (DES-0006 R5). MCP
+      lists its tools by hand in `src/mcp/tools.lisp`, and these four are not
+      added: an agent edits the file in its worktree, and MCP's tool set stays
+      as DES-0006 fixed it.
 
       `documents` (:read) takes an optional `repository` (all watched ones when
-      absent), and optional `type`, `status`,
-      `query` and `limit`, and answers one row per document: id, title, type,
-      repository, status, priority, tags, path, and the ids it refines and
-      affects.
-      `find` cannot do this: it takes a
-      required `term` and its rows carry no status.
+      absent) and answers one row per document: id, title, type, category,
+      status, priority, severity, date, tags, path, and the ids it refines and
+      affects. It takes no filter, for the reason D1b gives. `find` cannot do
+      this: it takes a required `term` and its rows carry no status. The index
+      held neither `tags` nor `date` for a workflow document, and the explorer
+      filters on tags, so the `:document` entity declares both and the analyzer
+      reads them.
 
       `read-document` (:read) takes `repository` and `document` and answers the
-      text and its version.
+      text and a version token.
 
-      `write-document` (:write) takes `repository`, `document`, `contents` and
-      `version`. It calls `docstore-write` with `:expected-version`. A version
-      that no longer matches signals `docstore-conflict`, which answers 409 with
-      the current version and text and writes nothing. A write that succeeds
-      answers the new record and the `check-document` result for the text just
+      `write-document` (:write) takes `repository`, `document`, `text` and
+      `version`. The version token is the length of the text and a hash of it,
+      because a store's own version is not a value that crosses a process
+      boundary (DES-0051 N2). Under the repository lock the write compares the
+      token with the text now stored, and passes the store the version it just
+      read as `:expected-version`, so a file changed between the two is still
+      refused. A text that is no longer the one read signals `version-conflict`,
+      which REST answers 409 with `current` holding the stored text and
+      version, and nothing is written. A save of the text already stored
+      answers `changed: false` and touches no file. A write that succeeds
+      answers the new version and the `check-document` result for the text just
       written, so the editor shows what the save resolves to without a second
       call. The write does not refuse a document for having an unresolved
       reference; `check` reports those and a draft may name a document not yet
       written.
 
       The operations do not call the document store themselves. Only
-      synoptik-workspace may (RULE-0011, RULE-0012), so two functions are added
-      there, beside `set-document-status`, that call `docstore-read` and
-      `docstore-write`, and the operations call those.
+      synoptik-workspace may (RULE-0011, RULE-0012), so `read-document-text`,
+      `write-document-text` and `create-document` are in
+      `src/workspace/document-edit.lisp`, and the operations call those.
 
       DEC-0001 holds. The write goes to the file through the document store,
-      and the index follows through the file monitor. It writes nothing to the
-      graph.
+      and the index is brought up to date by one `poll-documents` after it, the
+      call the file monitor makes. It writes nothing to the graph directly.
 
   D1a `create-document` (:write) takes `repository`, `category` and `title`, and
       optionally `refines`. It accepts the categories `req` and `bug` and
@@ -182,7 +191,10 @@ body: |
       called only with a path from that list, and the server refuses any other,
       so the browser cannot ask the service to read an arbitrary path. The roots
       default to none, and an operator sets them. Removing a folder calls
-      `unwatch`, which drops the index and leaves the files.
+      `unwatch`, which drops the index and leaves the files. A folder that is
+      gone from disk is unknown to the service, so `POST /api/workspace/forget`
+      removes it from the workspace file alone, and refuses a path the file does
+      not list.
 
       The workspace is stored by the Node server in `~/.synoptik/web.json`
       (directory mode 0700, file mode 0600), or under `$SYNOPTIK_WEB_HOME` when
@@ -214,6 +226,81 @@ body: |
       folder cannot leave a dead entry. An unparsable file is handled as in D16.
       The prototype keeps both files in browser storage.
 
+  D18 Working with an agent on a document. Three additions, none of which makes
+      the editor a shared one. The agent edits the file; the editor follows it.
+      (1) The editor reads the open document again when the server says the
+      service has read a new text of it (D19), or every four seconds while the
+      page is visible when it has no connection to the server, and compares
+      the version token it holds. A change with no
+      unsaved edit is taken, the text from before is kept in memory, and a
+      notice offers a line diff and a way back, which writes that text with the
+      version just read, so a third change in between is refused. A change with
+      unsaved edits opens the refused-save dialog. (2) `suggest-fixes` (:read, REST only) takes a
+      repository and a document and answers, for each declared reference that
+      resolves to nothing and is not a document id, the code entities the index
+      holds under the last part of its name: `{replacement, file, type}`,
+      declared type first. `committed-document` (:read) answers the text git
+      holds at HEAD with a version token, through the repository's `git show`.
+      Neither writes. (3) The UI replaces one list entry with `replaceItem` in
+      yamlEdit.ts, which splices that entry's range and keeps the quoting and the
+      layout of the rest. The agent task is built in the editor from the
+      references and candidates and sent through the existing launch route after
+      the person has read it; the Node server reads no file and writes none.
+
+  D19 Changes reach the browser by push. The service keeps a log of the last 500
+      documents its index has read, written by INDEX-DOCUMENT and
+      RETRACT-DOCUMENT, which the monitor's poll, a write made through the
+      service and a rebuild all go through (`src/workspace/changes.lisp`). The
+      `changes` operation (:read, REST only, reads no repository) answers what
+      is newer than `after`, waiting up to `wait` seconds (at most 30) for
+      something to be. It holds one worker thread while it waits, and answers
+      `reset` when the caller has no number, a number from another run
+      (`epoch` is fixed per process) or one the log no longer reaches. The Node
+      server runs one such long poll for everyone (`ChangeFeed`) while any
+      browser listens and sends each change on `/api/events`. The browser
+      reads that stream with `fetch` and not `EventSource`, because EventSource
+      cannot send the bearer token, and reconnects with a growing delay. The
+      editor reads the open document when an event names its file, and the
+      cards reload after a pause of 1.5 s with no further event. A websocket
+      was not used: nothing travels from the browser on this channel, and SSE
+      reconnects by itself. The delay is the monitor's two-second directory
+      check, which is not replaced by file notifications: 1.8 s measured from
+      writing a file to the editor's notice, with one read of the document.
+
+  D20 The agent host (`src/web/packages/agent-host`). Four considered: CloudCLI
+      alone, Node starting `claude` itself, the Synoptik service starting it,
+      and a host of our own. CloudCLI gives no stop and no running state, is
+      AGPL and a whole application. Node starting it would need Node and the
+      files on one machine, which the web server does not assume. The service
+      starting it would give the knowledge service the power to run commands.
+      So the host is its own small Node program, started on the machine with
+      the files. It runs `claude -p <task> --output-format stream-json
+      --permission-mode acceptEdits --permission-prompts none --max-budget-usd N`
+      in the repository, with the tools it may use named on the command line, and
+      reads the stream: the first event carries the tool's session id, the last
+      says how the run ended. Status is `working` while the process runs, then
+      `finished`, `failed` or `idle` after a stop. `approve` is not offered:
+      with prompts answered by nobody an action that would ask is refused, which
+      is the safe reading until the host can answer prompts. The routes, under
+      `/host/v1/`: `GET capabilities`, `GET sessions`, `POST sessions`
+      {repository, task} answering 202 and the session, `GET sessions/{id}`,
+      `POST sessions/{id}/stop`, `GET sessions/{id}/events` as server-sent
+      events. Every route needs `Authorization: Bearer`, compared in constant
+      time, and the host will not start without a token or bind beyond loopback
+      without one. A repository must be a git repository named at start, by its
+      real path; a request names it by that path and anything else is 403.
+      One running session per repository (409), because two agents in one
+      checkout overwrite each other until each has a worktree. The credentials
+      are the process's environment and the tool's own login; the host does not
+      read, log or return them. Sessions are kept in memory, the last 50, and a
+      restart forgets them. `HostAdapter` in `packages/agents` implements
+      AgentController against these routes, so the web server's agent routes
+      and the interface do not change, and CloudCliAdapter stays beside it.
+      Signing in from the page (R22) adds `POST auth/login` and
+      `POST auth/code` to the host later: the host runs `claude auth login`,
+      returns the address it prints, and writes the pasted one-time code to the
+      process; the web server forwards both and stores nothing.
+
   THE EDITOR
 
   D14 The editor opens a document from `read-document`. The YAML is parsed with a
@@ -225,11 +312,31 @@ body: |
       `set-status`, not through the text, because a status change files the
       document under `completed/` and a text write does not.
 
-  D15 The editor library is open. The requirement is a formatted view of YAML that
-      round-trips, and the candidates differ in how they treat text they do not
-      understand. A spike loads every document in `docs/` into each candidate,
-      saves without an edit, and counts the files whose bytes differ. A library
-      that changes any is out.
+  D15 The editor edits the source text and never re-serialises it. Spike S2
+      (`src/web/spikes/s2-roundtrip`) parsed the 489 documents of this tree,
+      game-server, front-end and utils with the `yaml` package 2.8.1. Writing
+      each parsed document back out changed 484 of them. Changing one summary
+      line in twenty documents that way changed 2329 other lines. Taking the
+      node's source range from the parse and replacing only that range changed no
+      other line. So the structured controls hold the parse for positions and
+      each edit splices the characters of one node into the original text. The
+      editor package is `yaml` for positions, and the text view and find and
+      replace sit on a plain text buffer; the choice of a code-editor widget
+      for the YAML toggle is cosmetic and left to S10. The splice side of the
+      spike returns the input by construction, so the test S10 adds is that
+      every spliced edit parses back to the value entered.
+
+      A summary or body is drawn as an outline (`src/web/packages/ui/src/outline.ts`).
+      Blocks are divided by blank lines. An all-capitals line is a heading and
+      owns the blocks up to the next heading. A block indented deeper than the
+      one before it is that block's child. A block starting `R12`, `D3` or `S2a`
+      shows the label as a badge. Indent and outdent shift every line of a block
+      and its children by two spaces, and move up and down swap whole subtrees.
+      The outline is rebuilt from the text on every change and the blank lines
+      between blocks stay in their positions, so joining an unedited outline
+      returns its text; a test checks that for every summary and body in this
+      tree. A literal block whose first line is indented is written `|2`,
+      because YAML otherwise takes the first line's indent for the whole scalar.
 
   STYLE
 
@@ -238,9 +345,10 @@ body: |
       components into it, and gives overlay components the root as their portal
       container. The theme is a `data-theme` attribute on the root's wrapper
       element: the plugin sets it from `api.context.theme` and the shell from
-      `prefers-color-scheme`. The tests in D12 fix DEC-0011's two open points:
-      the unit that `rem` resolves to inside the root, and whether the Tailwind
-      major version chosen draws its shadows and gradients there.
+      `prefers-color-scheme`. Spike S1 settled DEC-0011's two open points:
+      Tailwind 3 is used because Tailwind 4 draws no shadows, rings or gradients
+      in a shadow root, and the plugin build rewrites `rem` to `px` because
+      `rem` follows the host's root font size.
 
   AGENTS
 
@@ -262,22 +370,29 @@ body: |
       capability the adapter reports, and a method an adapter lacks rejects with
       `Unsupported`.
 
-  D9  The native adapter implements `capabilities`, `list` and `status`. It reads
-      the retrieval log (REQ-0036), which an operator switches on and which is
-      off by default, through a new read operation `context-log` that answers
-      recent records. When the log is off the adapter reports no capabilities
-      and says why. Whether a record carries enough to name a session, or only
-      a query, is not established; if it does not, `list` answers recent
-      queries and `capabilities` says so, and no status is invented. Everything
-      is `unknown` rather than guessed. `context-log` is on the proxy's allow
-      list.
+  D9  The native adapter reports no capability. It was to read the retrieval log
+      (REQ-0036) through a `context-log` operation. A record holds the task, the
+      seeds and what came back for one `context` call, and nothing in it names
+      the session that made the call, so no session can be listed and no status
+      can be told from it. The adapter says so in its notes and invents nothing.
+      `context-log` is not built, and PLAN-0062 S5 no longer lists it.
 
   D10 The CloudCLI adapter runs in the Node server and calls CloudCLI's REST API at
-      an address and with a credential the server's configuration holds. The
-      browser sees neither. Its capabilities are whatever the API offers once
-      someone has read it; until then it claims none. Inside the CloudCLI host
-      the plugin does not register this adapter: the host's own session views
-      are the agent surface.
+      an address and with credentials the server's configuration holds
+      (`SYNOPTIK_CLOUDCLI_URL`, `_TOKEN`, `_API_KEY`). The browser sees none of
+      them. CloudCLI's source (spike S3, read 2026-10-17) offers two routes that
+      serve this. `GET /api/projects` with a JWT lists each project's sessions
+      with id, provider, summary, last activity and message count, which gives
+      `list`. `POST /api/agent` with an API key made in CloudCLI starts a run
+      from a project path and a message, which gives `launch`, and with
+      `stream: false` it answers when the run ends. The server therefore answers
+      a launch with 202 at once and keeps the outcome in a list of the last 20
+      launches. There is no abort route and no running-state route: a run's
+      state is on CloudCLI's WebSocket, whose messages are not documented. So
+      the adapter reports `list` and `launch` only, and every session it lists
+      has status `unknown`. It has not been run against a live CloudCLI. Inside
+      the CloudCLI host the plugin does not register this adapter: the host's own
+      session views are the agent surface.
 
   D11 Launch and stop are writes. The Node server offers them only when the
       service grants :write and the adapter reports the capability, as the MCP
