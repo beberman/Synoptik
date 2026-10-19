@@ -1,10 +1,10 @@
 id: PLAN-0062
-title: Build the web UI in sixteen steps, a clickable prototype for approval first, then three spikes, the four registry operations, the Node proxy, the explorer, the editor, the agents and the CloudCLI plugin
+title: Build the web UI in steps, a clickable prototype for approval first, then three spikes, the four registry operations, the Node proxy, the explorer, the editor, the agents, the agent host and its terminal
 status: draft
 date: 2026-10-17
 refines: [DES-0057]
 affects: [set-document-status, check-document-references]
-tags: [web, ui, react, node, tailwind, cloudcli, plugin, editor, req-0080,
+tags: [web, ui, react, node, tailwind, editor, req-0080,
        des-0057, dec-0011, dec-0012]
 summary: |
   Sequences DES-0057 into sixteen steps. Step 0 is a clickable prototype that
@@ -15,10 +15,11 @@ summary: |
   what CloudCLI's API and plugin loader allow. Steps 4 and 5 are the Lisp half,
   four registry operations. Steps 6 to 8 are the Node half, the client, the
   proxy and the standalone listener. Steps 9 to 11 are the components, 12 is the
-  agents, 13 the phone checks, 14 the plugin repository, 15 the acceptance run
-  from REQ-0080 on this tree and on game-server.
+  agents, 13 the phone checks, 15 the acceptance run from REQ-0080 on this tree
+  and on game-server. S14, the CloudCLI plugin repository, moved to PLAN-0063
+  on 2026-10-18 with the rest of the CloudCLI work (REQ-0083, DES-0058).
 
-  Out of scope: a credential for the Synoptik service, which REQ-0008 excludes;
+  Out of scope: the CloudCLI plugin and adapter (REQ-0083); a credential for the Synoptik service, which REQ-0008 excludes;
   a native app; creating any document type other than a requirement or a bug.
 body: |
   WORKING RULES
@@ -78,7 +79,7 @@ body: |
 
   THE SPIKES
 
-  S1  Shadow root and Tailwind. Build a page styled with Tailwind 3 and again
+  S1  Shadow root and Tailwind (run 2026-10-17; its CloudCLI half is REQ-0083's). Build a page styled with Tailwind 3 and again
       with Tailwind 4, mount each into a shadow root with a constructed
       stylesheet, and mount the Tailwind 3 and 4 builds through the plugin
       starter's `npm run build` into a local CloudCLI instance. Record: the unit
@@ -95,7 +96,7 @@ body: |
       that changed beyond it. Output: the library, written into DES-0057 D15. A
       library with any unedited file changed is out.
 
-  S3  CloudCLI. Read its REST API routes for sessions, launch and stop, its
+  S3  CloudCLI (run 2026-10-17; its results are in REQ-0083). Read its REST API routes for sessions, launch and stop, its
       authentication, and its cross-origin rules. Install it locally and check
       whether a plugin tab appears in its mobile view and at what width, and
       whether the plugin loader accepts a subdirectory. Output: REQ-0080's open
@@ -169,7 +170,7 @@ body: |
       with a refines picker from the explorer, and `complete` with its dry run
       shown as text.
 
-  AGENTS, PHONE, PLUGIN, ACCEPTANCE
+  AGENTS, PHONE, ACCEPTANCE
 
   S12 `packages/agents`: the interface, the status type, the native adapter, and
       the CloudCLI adapter with the capabilities S3 established. The server
@@ -177,7 +178,7 @@ body: |
 
   S13 Responsive pass. A browser test at 360 px wide checks no horizontal page
       scroll and controls of at least 44 px for every view, and the graph's list
-      form. Repeat against the plugin build.
+      form. The repeat against a plugin build is PLAN-0063 S4.
 
   S16 Changes made outside the editor (R18). The service logs what it indexes and
       `changes` long-polls it; the Node server streams that on `/api/events`; the
@@ -226,12 +227,7 @@ body: |
       and a resize. One live conversation on this machine, as the acceptance
       section describes.
 
-  S14 The `synoptik-cloudcli-plugin` repository: `manifest.json` at the root,
-      `src/index.ts` with `mount` and `unmount`, `src/server.ts` calling
-      `createHandler`, a pinned dependency on the `src/web` packages. Install it
-      from its git URL into a CloudCLI instance and run the plugin half of
-      REQ-0080's acceptance, including the theme switch and CloudCLI's own tabs
-      unchanged. Settle its licence against CloudCLI's AGPL-3.0 first.
+  S14 Moved to PLAN-0063 S2: the `synoptik-cloudcli-plugin` repository.
 
   S15 Acceptance. Run REQ-0080's acceptance section end to end on this tree and on
       game-server, as the memory on dogfooding requires, then `complete`
@@ -246,7 +242,7 @@ body: |
       the service refuses to read either by id and says so, which is the right
       answer and a defect in that tree. A browser run (`src/web/e2e/run.mjs`)
       adds a folder, edits, hits a conflict, creates, checks 44 px targets at
-      360 px and removes the folder, in a scratch repository. Not yet done: S14, a phone over a real network, and the acceptance run's remaining items.
+      360 px and removes the folder, in a scratch repository. Not yet done: a phone over a real network, and the acceptance run's remaining items.
 
   RISKS
 
@@ -255,4 +251,4 @@ body: |
   `partial`. S1 can reject both Tailwind versions in a shadow root, which costs
   a restyle in CSS Modules before S9. S3 can find that CloudCLI's API offers no
   launch route, leaving the CloudCLI adapter with `list` alone and R10 met in
-  part.
+  part. That is now REQ-0083 R2.
