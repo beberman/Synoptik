@@ -10,28 +10,23 @@ affects: [handle-request, "*route-prefix*"]
 importance: Major
 tags: [ui, web, explorer, editor, create, responsive, mobile, css, shadow-dom, theme, react, agents, adapter, cloudcli, plugin, rest, des-0006, dec-0001]
 summary: |
-  Synoptik answers through `tools/synoptik.sh`, REST under `/v1/` and MCP at
-  `/mcp` (REQ-0008). A person reading the documents follows `refines:` and
-  `affects:` by running `describe` and `impact` and reading the output. Editing
-  a document means opening a YAML file, then running `check_document` to learn
-  whether it resolves. Starting an agent on a task, and seeing what it is doing,
-  happens in a terminal Synoptik does not know about.
-
   This asks for a browser UI over the existing REST routes with two parts: the
   documents, their relationships and an editor, built as React components that
   run standalone and inside CloudCLI as a plugin; and agent launch and status,
   which CloudCLI already provides and which Synoptik reaches through an
   interface other tools can implement. CloudCLI has no concept of a document,
   so the first part is what it lacks.
+
+  The lisp knowledge engine for Synoptik will not provide agent management. This is done separately through a different node process that warps the LLM apis and will be compatible with ClaudeCLI
 body: |
   PRIORITY: P2, 2026-10-17
 
-  Impact is that every question the index can answer is reachable only by
-  someone who already knows the command vocabulary. Probability is every use.
-
   Sequence: REQ-0008 is the surface this sits on. REQ-0021 R8 says an agent in a
   prepared worktree reaches Synoptik through the service; the agent half of this
-  is the other direction, a person reaching agents from the service.
+  is the other direction, a person reaching agents from the service. REQ-0081
+  refines this one: accounts, pairing a host to a person, and a terminal with
+  an agent in it. The agent half here serves more than one person only once
+  that exists.
 
   WHAT IS WANTED
 
@@ -229,6 +224,33 @@ body: |
       text written; otherwise it is made in the editor and saved with the
       rest. A name defined nowhere is reported as that, and is not guessed.
 
+  R21 An agent host. Agents run on the machine that holds the files, because
+      one that edits a file needs the file. A small program there, the agent
+      host, starts Claude Code, holds the model credentials in its own
+      environment and answers the web server over HTTP with a bearer token it
+      requires on every request. It offers the adapter interface of R8 to R10:
+      list, launch, stop, status, a stream of progress and approval where the
+      tool can ask. The web server reaches it through one adapter and never
+      holds a credential or reads a file. The host runs a session only in a
+      repository on its own list, one session at a time in each, with a spending
+      limit and a permission mode that lets it edit and nothing wider. CloudCLI
+      stays a second adapter behind the same interface, so either, both or
+      neither can be configured. Which person a host belongs to, and how the
+      web server knows who is asking, is REQ-0081.
+
+  R22 Replaced by REQ-0081 R7: the person signs in to Claude in a terminal on
+      the host, so the code relay below is not built. The text is kept as the
+      record of what was proposed.
+      Signing in from the page (not yet built). The person with no shell on the
+      host's machine can sign in to Claude from the web page. The host starts
+      the tool's own sign-in, hands the page the address it prints, and takes
+      back the one-time code the person copies from Anthropic's page. The web
+      server forwards both and keeps neither. The credential the sign-in
+      produces is written by the tool on the host's disk and is never sent
+      anywhere. Until this exists, signing in is `claude auth login` or
+      `ANTHROPIC_API_KEY` on the host, done once when the repositories are
+      cloned there.
+
   ACCEPTANCE
 
   Open the standalone UI against the running service. Filter to requirements
@@ -272,6 +294,14 @@ body: |
   that has since moved, see the file it is in now offered, choose it, and see
   only that entry change on disk and the check report it resolved. Ask an agent
   to fix an unresolved reference and read the task before it is sent.
+
+  Start the agent host on this machine with one repository, and have the web
+  server reach it with the token. Ask an agent to fix an unresolved reference
+  and see the session listed as working, the file change arrive in the editor,
+  and the session finish. Start a second session in the same repository and see
+  it refused. Ask for a repository that is not on the host's list and see it
+  refused. Stop a running session and see it stop. Call the host without its
+  token and see it refused.
 
   OPEN QUESTIONS
 
