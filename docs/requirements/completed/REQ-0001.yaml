@@ -1,0 +1,22 @@
+id: REQ-0001
+title: Multiple Workspace Support
+status: implemented
+importance: Major
+summary: |
+ Currntly we can index multiple workspaces but only query one.  
+ If multiple are being indexed, we currently cannot query at all.
+ Need support for queries restricted to a particular workspace.
+body: |
+  Support queries on multiple watched git workspaces. 
+  Support an in deliminter on queries so that the string 
+  be queried can be restricted to a workspace.
+
+ 
+  DONE
+
+  Delivered by REQ-0023 and REQ-0051, checked 2026-10-19 against a service
+  holding seven repositories. REQ-0023 makes every query name its repository,
+  and a leading `@name` names one for a single command. A call that names none
+  is refused with "needs a repository argument" and does not guess. REQ-0051
+  makes `find` answer across every watched repository, each result naming its
+  own. `affects:` is empty because those two documents list the code.
