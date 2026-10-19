@@ -1,7 +1,7 @@
 id: BUG-0084
 type: bug
 title: Saving one document walked every file under the repository root, 20 seconds on front-end
-status: open
+status: closed
 severity: major
 date: 2026-10-18
 importance: Major

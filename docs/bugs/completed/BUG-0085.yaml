@@ -1,7 +1,7 @@
 id: BUG-0085
 type: bug
 title: A tree whose dependencies are not under node_modules, or that commits it, is indexed differently
-status: open
+status: closed
 severity: minor
 date: 2026-10-18
 importance: Minor
