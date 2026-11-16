@@ -26,7 +26,7 @@ plans, and execute code. Documents and their relatioships can be navigated inclu
 dependant code.  This provides a powerful way of controlling an agent and writing
 code at the requirments and design level and letting the agent create and test the code.
 
-Synoptik was called Synoptik until October 2026. The code keeps the old name: the
+Synoptik was called Loom until October 2026. The code keeps the old name: the
 ASDF systems and packages are `synoptik-*`, the MCP
 tools are `synoptik_*`, and the index directory is `.synoptik/`.
 
