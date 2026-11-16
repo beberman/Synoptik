@@ -107,6 +107,11 @@ not on synoptik-process or on each other.
 | synoptik-rest | HTTP and JSON over that registry. |
 | synoptik-mcp | MCP's JSON-RPC over the same listener. |
 
+The web UI is not a thirteenth row. `src/web/` is an npm workspace with no Lisp and
+no ASDF system (DES-0057 D4). Its Node server sits beside synoptik-rest and
+synoptik-mcp as another client of the listener on 4780, and no Lisp system
+depends on it. See "The web UI" under "Running it".
+
 The layering is enforced by RULE-0001 to RULE-0003 and RULE-0009 to RULE-0021,
 which `check` runs. They cannot see that synoptik-serve, synoptik-rest and synoptik-mcp
 stay peers of synoptik-process. This does:
@@ -116,9 +121,10 @@ stay peers of synoptik-process. This does:
 It loads one system into a fresh image and prints a line ending in T when
 synoptik-process is not in the image. CLAUDE.md has the reasoning for each layer.
 
-## Console, REST and MCP
+## Console, REST, MCP and the web UI
 
-All three answer from the same operation registry in synoptik-serve.
+The first three answer from the same operation registry in synoptik-serve. The
+fourth is a client of the REST routes.
 
 - **Console.** `sbcl --script synoptik.lisp` opens a `synoptik>` prompt.
   tools/synoptik.sh drives the same console from a script.
@@ -129,6 +135,12 @@ All three answer from the same operation registry in synoptik-serve.
   with Claude Code as the `synoptik_*` tools. Claude Code resolves its MCP servers
   once, when a session opens, so the service has to be running before the
   session starts.
+- **Web UI.** `tools/synoptik-ui.sh start` runs a Node server on 127.0.0.1
+  port 4790 that serves the page and forwards a fixed list of operations to the
+  REST routes on 4780. It adds nothing to the registry's tiers, and the
+  browser never reaches the listener directly. The listener refuses a
+  non-loopback Host, so the Node server is what a phone or another machine
+  reaches, behind a bearer token (INSTALL.md, "The web UI").
 
 The tables below list the operations, the tiers and the tools. These operations
 are REST only: watch, pause, unwatch, reindex, embed, server-status, init,
@@ -139,8 +151,6 @@ consent first.
 ## What it contains
 
 <!-- figures:begin -->
-Figures taken at commit a5466cc, committed 2026-10-11.
-
 Read from the tree by tools/test/readme-figures.py: the status, structure and
 help commands of tools/synoptik.sh, and tools/test/surface.lisp. Edit those, not
 this block.
@@ -249,6 +259,23 @@ and does nothing otherwise. `status` also lists the watched trees. It takes the
 repository list from the file described below; the two `sbcl` lines take theirs
 on the command line. `start` asks the service to build each repository's vector
 store and does not wait for it.
+
+### The web UI
+
+The browser interface needs the service above to be running, and Node 22 or later.
+
+    tools/synoptik-ui.sh start        then open http://127.0.0.1:4790/
+    tools/synoptik-ui.sh status
+    tools/synoptik-ui.sh restart
+    tools/synoptik-ui.sh stop
+
+The first `start` installs the npm packages in `src/web/` and builds the page, so
+it takes longer than later ones. Agents and terminals also need `tmux`, `python3`
+and a signed-in `claude` on the PATH; without them the page works and `start` says
+the agent host was not started. The server listens on 127.0.0.1 only unless you set
+`SYNOPTIK_UI_HOST` and `SYNOPTIK_UI_TOKEN`. [INSTALL.md](INSTALL.md), "The web UI",
+covers the requirements, the workspace in `~/.synoptik/`, and reaching it from
+another machine.
 
 ## Which trees it watches
 
@@ -408,10 +435,7 @@ the service trusts, what the Host check stops and what it does not.
   and no count of what was cut.
 - **Two rules are prose.** `check` cannot enforce RULE-0004 and RULE-0008 and
   prints them as unenforced.
-- **The semantic figures from 2026-08-23 cannot be reproduced here**, and
-  neither can the acceptance instrument under tools/test that scores them. They
-  need trees that are not published ([docs/PRIVATE-TREES.md](docs/PRIVATE-TREES.md)).
-  The figures in INSTALL.md are on Synoptik's own tree and can.
+
 
 ## Where the knowledge lives
 
